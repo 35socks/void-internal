@@ -1,0 +1,567 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>VOID RECORDS // BADGE AUTH</title>
+<style>
+@font-face {
+    font-family: "Ndot 55";
+    src: url("https://db.onlinewebfonts.com/t/5f21b8d13dad527377311ec2d5388bdf.eot");
+    src: url("https://db.onlinewebfonts.com/t/5f21b8d13dad527377311ec2d5388bdf.eot?#iefix") format("embedded-opentype"),
+    url("https://db.onlinewebfonts.com/t/5f21b8d13dad527377311ec2d5388bdf.woff2") format("woff2"),
+    url("https://db.onlinewebfonts.com/t/5f21b8d13dad527377311ec2d5388bdf.woff") format("woff"),
+    url("https://db.onlinewebfonts.com/t/5f21b8d13dad527377311ec2d5388bdf.ttf") format("truetype"),
+    url("https://db.onlinewebfonts.com/t/5f21b8d13dad527377311ec2d5388bdf.svg#Ndot 55") format("svg");
+    font-display: swap;
+}
+@import url('https://fonts.googleapis.com/css2?family=Open+Sans:wght@400;500;600;700&display=swap');
+
+:root{
+    --void: #000000;
+    --paper: #ffffff;
+    --dim: #6a6a6a;
+    --dim-2: #333333;
+    --panel: #0a0a0a;
+    --line: #2a2a2a;
+    --ease: cubic-bezier(.16,.84,.44,1);
+}
+
+*{ margin:0; padding:0; box-sizing:border-box; }
+
+html,body{
+    background: var(--void);
+    color: var(--paper);
+    width:100%; height:100%;
+    overflow-x:hidden;
+    font-family:'Open Sans', sans-serif;
+}
+
+body{
+    min-height:100vh;
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    position:relative;
+}
+
+#dotfield{
+    position:fixed;
+    inset:0;
+    z-index:0;
+    display:block;
+}
+
+.noise{
+    position:fixed;
+    inset:0;
+    z-index:1;
+    pointer-events:none;
+    opacity:.035;
+    background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='90' height='90'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+}
+
+.scanline-overlay{
+    position:fixed; inset:0; z-index:2; pointer-events:none;
+    background:repeating-linear-gradient(
+        to bottom,
+        rgba(255,255,255,0.018) 0px,
+        rgba(255,255,255,0.018) 1px,
+        transparent 1px,
+        transparent 3px
+    );
+}
+
+/* ---------- boot sequence ---------- */
+#boot{
+    position:fixed; inset:0; z-index:20;
+    background:var(--void);
+    display:flex; flex-direction:column;
+    align-items:flex-start; justify-content:center;
+    padding: 6vw;
+    font-family:'Open Sans', monospace;
+    letter-spacing:.08em;
+    font-size:13px;
+    color:var(--paper);
+    transition: opacity .6s var(--ease), visibility .6s;
+}
+#boot.hide{ opacity:0; visibility:hidden; pointer-events:none; }
+#boot .line{
+    opacity:0;
+    margin-bottom:8px;
+    color: var(--dim);
+}
+#boot .line.on{ opacity:1; animation: flicker-in .25s steps(2); }
+#boot .cursor{
+    display:inline-block; width:8px; height:14px;
+    background:var(--paper);
+    margin-left:4px;
+    animation: blink 1s steps(1) infinite;
+    vertical-align:middle;
+}
+@keyframes flicker-in{ 0%{opacity:0;} 50%{opacity:.5;} 100%{opacity:1;} }
+@keyframes blink{ 0%,49%{opacity:1;} 50%,100%{opacity:0;} }
+
+/* ---------- main wrap ---------- */
+main{
+    position:relative;
+    z-index:5;
+    width:100%;
+    display:flex;
+    flex-direction:column;
+    align-items:center;
+    padding: 8vh 5vw 10vh;
+    opacity:0;
+    transform:translateY(14px);
+    transition: opacity .9s var(--ease) .15s, transform .9s var(--ease) .15s;
+}
+main.reveal{ opacity:1; transform:translateY(0); }
+
+.wordmark{
+    font-family:'Ndot 55', 'Open Sans', monospace;
+    font-size: clamp(28px, 5vw, 46px);
+    letter-spacing:.12em;
+    text-align:center;
+    line-height:1;
+}
+.eyebrow{
+    font-size:11px;
+    letter-spacing:.35em;
+    color:var(--dim);
+    text-transform:uppercase;
+    margin-top:14px;
+    display:flex;
+    align-items:center;
+    gap:10px;
+}
+.eyebrow .dot-pulse{
+    width:6px; height:6px; border-radius:50%;
+    background:var(--paper);
+    animation: pulse 1.6s ease-in-out infinite;
+}
+@keyframes pulse{ 0%,100%{opacity:.25; transform:scale(.8);} 50%{opacity:1; transform:scale(1);} }
+
+/* ---------- badge card ---------- */
+.badge-wrap{
+    margin-top: 6vh;
+    position:relative;
+    width:min(420px, 92vw);
+}
+
+.corner{
+    position:absolute; width:22px; height:22px;
+    border-color:var(--paper);
+    border-style:solid;
+    opacity:.8;
+    z-index:3;
+}
+.corner.tl{ top:-10px; left:-10px; border-width:2px 0 0 2px; }
+.corner.tr{ top:-10px; right:-10px; border-width:2px 2px 0 0; }
+.corner.bl{ bottom:-10px; left:-10px; border-width:0 0 2px 2px; }
+.corner.br{ bottom:-10px; right:-10px; border-width:0 2px 2px 0; }
+
+.badge-card{
+    position:relative;
+    background: var(--panel);
+    border:1px solid var(--line);
+    padding: 26px;
+}
+
+.badge-top{
+    display:flex;
+    justify-content:space-between;
+    align-items:baseline;
+    font-size:11px;
+    letter-spacing:.2em;
+    color:var(--dim);
+    margin-bottom:18px;
+    text-transform:uppercase;
+}
+.badge-top .id-num{
+    font-family:'Ndot 55', monospace;
+    color:var(--paper);
+    font-size:14px;
+    letter-spacing:.15em;
+}
+
+.photo-frame{
+    position:relative;
+    width:100%;
+    aspect-ratio: 1 / 1;
+    overflow:hidden;
+    border:1px solid var(--line);
+    background:#050505;
+}
+.photo-frame img{
+    width:100%; height:100%;
+    object-fit:cover;
+    object-position: center 18%;
+    filter: grayscale(1) contrast(1.25) brightness(.92);
+    display:block;
+    transition: filter 1.4s var(--ease);
+}
+.photo-frame .halftone{
+    position:absolute; inset:0;
+    background-image: radial-gradient(rgba(0,0,0,0.92) 1px, transparent 1.3px);
+    background-size: 4px 4px;
+    mix-blend-mode: multiply;
+    opacity:.55;
+    pointer-events:none;
+}
+.photo-frame .vignette{
+    position:absolute; inset:0;
+    background: radial-gradient(120% 90% at 50% 30%, transparent 55%, rgba(0,0,0,.55) 100%);
+    pointer-events:none;
+}
+.scan-sweep{
+    position:absolute; left:0; right:0; top:0;
+    height:38%;
+    background: linear-gradient(to bottom, rgba(255,255,255,0) 0%, rgba(255,255,255,.55) 48%, rgba(255,255,255,0) 100%);
+    transform: translateY(-100%);
+    animation: sweep 1.9s var(--ease) .5s 1;
+    mix-blend-mode: screen;
+}
+@keyframes sweep{
+    0%{ transform:translateY(-120%); }
+    100%{ transform:translateY(340%); }
+}
+.photo-frame .frame-tag{
+    position:absolute; bottom:8px; left:8px;
+    font-size:9px; letter-spacing:.15em;
+    color:var(--paper);
+    background:rgba(0,0,0,.55);
+    padding:2px 6px;
+    text-transform:uppercase;
+    opacity:.7;
+}
+
+.id-block{
+    margin-top:20px;
+}
+.id-name{
+    font-family:'Ndot 55', 'Open Sans', monospace;
+    font-size: clamp(22px, 6vw, 30px);
+    letter-spacing:.04em;
+    line-height:1.05;
+}
+.id-role{
+    margin-top:6px;
+    font-size:11px;
+    letter-spacing:.22em;
+    text-transform:uppercase;
+    color:var(--dim);
+}
+
+.divider{
+    height:1px;
+    background: repeating-linear-gradient(to right, var(--line) 0, var(--line) 4px, transparent 4px, transparent 8px);
+    margin: 20px 0;
+}
+
+.stat-grid{
+    display:grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 18px 12px;
+}
+.stat{
+    display:flex;
+    flex-direction:column;
+    gap:6px;
+}
+.stat-label{
+    display:flex; align-items:center; gap:6px;
+    font-size:10px;
+    letter-spacing:.2em;
+    text-transform:uppercase;
+    color:var(--dim);
+}
+.stat-label svg{ width:13px; height:13px; flex-shrink:0; opacity:.85; }
+.stat-value{
+    font-family:'Ndot 55', monospace;
+    font-size:16px;
+    letter-spacing:.06em;
+}
+.stat-value.tenure{
+    font-variant-numeric: tabular-nums;
+    font-size:15px;
+}
+
+.access-block{
+    margin-top:20px;
+}
+.access-head{
+    display:flex; justify-content:space-between; align-items:center;
+    font-size:10px; letter-spacing:.2em; text-transform:uppercase; color:var(--dim);
+    margin-bottom:8px;
+}
+.access-head .lvl{ color:var(--paper); font-family:'Ndot 55', monospace; font-size:13px; letter-spacing:.1em;}
+.meter{
+    display:flex; gap:4px;
+}
+.meter i{
+    flex:1;
+    height:8px;
+    background: var(--line);
+    display:block;
+    transform-origin:left;
+    transform:scaleX(0);
+    animation: fillseg .45s var(--ease) forwards;
+}
+.meter i.on{ background:var(--paper); }
+@keyframes fillseg{ to{ transform:scaleX(1); } }
+
+.status-row{
+    margin-top:22px;
+    display:flex; align-items:center; justify-content:space-between;
+    gap: 12px;
+}
+.status-text{
+    font-size:11px; letter-spacing:.18em; color:var(--dim); text-transform:uppercase;
+    line-height:1.5;
+}
+.status-text b{ color:var(--paper); display:block; font-family:'Ndot 55', monospace; font-size:13px; letter-spacing:.1em; margin-top:2px; }
+
+.stamp{
+    font-family:'Ndot 55', monospace;
+    font-size:15px;
+    letter-spacing:.12em;
+    color:var(--void);
+    background:var(--paper);
+    padding:10px 14px;
+    border:2px solid var(--paper);
+    transform: rotate(-6deg) scale(0);
+    opacity:0;
+    white-space:nowrap;
+    animation: stampin .5s cubic-bezier(.2,1.5,.4,1) 2.6s forwards;
+}
+@keyframes stampin{
+    0%{ transform:rotate(-6deg) scale(0); opacity:0; }
+    60%{ transform:rotate(-6deg) scale(1.15); opacity:1; }
+    100%{ transform:rotate(-6deg) scale(1); opacity:1; }
+}
+
+footer{
+    margin-top:36px;
+    font-size:9.5px;
+    letter-spacing:.2em;
+    color:var(--dim-2);
+    text-transform:uppercase;
+    text-align:center;
+    line-height:1.8;
+}
+
+@media (max-width:480px){
+    .badge-card{ padding:20px; }
+    .stat-grid{ gap:16px 10px; }
+}
+
+@media (prefers-reduced-motion: reduce){
+    *{ animation-duration:.001s !important; animation-iteration-count:1 !important; transition-duration:.001s !important; }
+}
+</style>
+</head>
+<body>
+
+<canvas id="dotfield"></canvas>
+<div class="noise"></div>
+<div class="scanline-overlay"></div>
+
+<div id="boot">
+    <div class="line" id="b1">VOID// ACCESS TERMINAL</div>
+    <div class="line" id="b2">INITIALISING SCANNER ARRAY...</div>
+    <div class="line" id="b3">LOADING PERSONNEL RECORD 000001...</div>
+    <div class="line" id="b4">STANDBY<span class="cursor"></span></div>
+</div>
+
+<main id="main">
+    <div class="wordmark">VOID RECORDS</div>
+    <div class="eyebrow"><span class="dot-pulse"></span>EMPLOYEE AUTHENTICATION SYSTEM</div>
+
+    <div class="badge-wrap">
+        <div class="corner tl"></div>
+        <div class="corner tr"></div>
+        <div class="corner bl"></div>
+        <div class="corner br"></div>
+
+        <div class="badge-card">
+            <div class="badge-top">
+                <span>PERSONNEL FILE</span>
+                <span class="id-num">NO. 000001</span>
+            </div>
+
+            <div class="photo-frame">
+                <img src="https://images.genius.com/d65036d6e9ab4af3ddeacc67e2674a9b.1000x1000x1.jpg" alt="Cameron Bell">
+                <div class="halftone"></div>
+                <div class="vignette"></div>
+                <div class="scan-sweep"></div>
+                <div class="frame-tag">IMG_000001</div>
+            </div>
+
+            <div class="id-block">
+                <div class="id-name">CAMERON BELL</div>
+                <div class="id-role">Founder &middot; Label Operations</div>
+            </div>
+
+            <div class="divider"></div>
+
+            <div class="stat-grid">
+                <div class="stat">
+                    <div class="stat-label">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-dasharray="0.1 4.2"><path d="M12 2v4M12 18v4M2 12h4M18 12h4M4.9 4.9l2.8 2.8M16.3 16.3l2.8 2.8M4.9 19.1l2.8-2.8M16.3 7.7l2.8-2.8"/><circle cx="12" cy="12" r="3.2"/></svg>
+                        Member Since
+                    </div>
+                    <div class="stat-value">07.08.2026</div>
+                </div>
+
+                <div class="stat">
+                    <div class="stat-label">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-dasharray="0.1 4"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3.5 2"/></svg>
+                        Time In Service
+                    </div>
+                    <div class="stat-value tenure" id="tenure">— — : — — : — —</div>
+                </div>
+
+                <div class="stat">
+                    <div class="stat-label">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-dasharray="0.1 4"><path d="M4 21v-1a8 8 0 0 1 16 0v1"/><path d="M9 8l3 3 3-3"/><path d="M12 3v8"/></svg>
+                        Department
+                    </div>
+                    <div class="stat-value">A&amp;R / STRATEGY</div>
+                </div>
+
+                <div class="stat">
+                    <div class="stat-label">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-dasharray="0.1 4"><path d="M3 12h3l2 6 4-14 2 8h7"/></svg>
+                        Site
+                    </div>
+                    <div class="stat-value">GLASGOW HQ</div>
+                </div>
+            </div>
+
+            <div class="divider"></div>
+
+            <div class="access-block">
+                <div class="access-head">
+                    <span>Clearance Level</span>
+                    <span class="lvl">LVL 05 — UNRESTRICTED</span>
+                </div>
+                <div class="meter" id="meter"></div>
+            </div>
+
+            <div class="status-row">
+                <div class="status-text">Badge verification<b id="statusline">SCANNING...</b></div>
+                <div class="stamp">ACCESS GRANTED</div>
+            </div>
+        </div>
+    </div>
+
+    <footer>VOID RECORDS &middot; GLASGOW &middot; INTERNAL USE ONLY<br>UNAUTHORISED DISTRIBUTION PROHIBITED</footer>
+</main>
+
+<script>
+/* ---------------- ambient dot-grid background ---------------- */
+(function(){
+    var canvas = document.getElementById('dotfield');
+    var ctx = canvas.getContext('2d');
+    var w, h, cols, rows, spacing = 26;
+    var dots = [];
+    var mouse = { x:-9999, y:-9999 };
+    var reduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+    function resize(){
+        w = canvas.width = window.innerWidth;
+        h = canvas.height = window.innerHeight;
+        cols = Math.ceil(w/spacing)+2;
+        rows = Math.ceil(h/spacing)+2;
+        dots = [];
+        for(var y=0;y<rows;y++){
+            for(var x=0;x<cols;x++){
+                dots.push({
+                    x: x*spacing,
+                    y: y*spacing,
+                    base: Math.random()*0.16 + 0.04,
+                    phase: Math.random()*Math.PI*2,
+                    speed: Math.random()*0.6 + 0.3
+                });
+            }
+        }
+    }
+    window.addEventListener('resize', resize);
+    window.addEventListener('mousemove', function(e){ mouse.x=e.clientX; mouse.y=e.clientY; });
+    window.addEventListener('mouseleave', function(){ mouse.x=-9999; mouse.y=-9999; });
+
+    var t = 0;
+    function draw(){
+        ctx.clearRect(0,0,w,h);
+        for(var i=0;i<dots.length;i++){
+            var d = dots[i];
+            var flicker = reduced ? d.base : d.base + Math.sin(t*d.speed + d.phase)*0.05;
+            var dx = d.x - mouse.x, dy = d.y - mouse.y;
+            var dist = Math.sqrt(dx*dx+dy*dy);
+            var boost = Math.max(0, 1 - dist/180) * 0.55;
+            var alpha = Math.min(1, flicker + boost);
+            ctx.fillStyle = 'rgba(255,255,255,'+alpha+')';
+            var r = 1 + boost*1.3;
+            ctx.beginPath();
+            ctx.arc(d.x, d.y, r, 0, Math.PI*2);
+            ctx.fill();
+        }
+        t += 0.02;
+        requestAnimationFrame(draw);
+    }
+    resize();
+    draw();
+})();
+
+/* ---------------- boot sequence ---------------- */
+(function(){
+    var lines = ['b1','b2','b3','b4'];
+    lines.forEach(function(id, i){
+        setTimeout(function(){
+            document.getElementById(id).classList.add('on');
+        }, 220 + i*260);
+    });
+    setTimeout(function(){
+        document.getElementById('boot').classList.add('hide');
+        document.getElementById('main').classList.add('reveal');
+    }, 1500);
+})();
+
+/* ---------------- access meter fill ---------------- */
+(function(){
+    var total = 8, on = 5;
+    var meter = document.getElementById('meter');
+    for(var i=0;i<total;i++){
+        var seg = document.createElement('i');
+        if(i<on) seg.classList.add('on');
+        seg.style.animationDelay = (1.6 + i*0.07) + 's';
+        meter.appendChild(seg);
+    }
+})();
+
+/* ---------------- status line swap ---------------- */
+setTimeout(function(){
+    var s = document.getElementById('statusline');
+    if(s) s.textContent = 'VERIFIED';
+}, 2500);
+
+/* ---------------- live tenure counter ---------------- */
+(function(){
+    var since = new Date('2026-08-07T00:00:00');
+    var el = document.getElementById('tenure');
+    function pad(n){ return String(n).padStart(2,'0'); }
+    function tick(){
+        var now = new Date();
+        var diff = Math.max(0, now - since);
+        var days = Math.floor(diff / 86400000);
+        var hrs = Math.floor((diff % 86400000) / 3600000);
+        var mins = Math.floor((diff % 3600000) / 60000);
+        var secs = Math.floor((diff % 60000) / 1000);
+        el.textContent = pad(days)+'D '+pad(hrs)+'H '+pad(mins)+'M '+pad(secs)+'S';
+    }
+    tick();
+    setInterval(tick, 1000);
+})();
+</script>
+</body>
+</html>
