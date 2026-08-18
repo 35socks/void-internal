@@ -1,0 +1,608 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>LRC Line Tagger</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg: #0a0c0d;
+    --panel: #131718;
+    --panel-2: #191f21;
+    --line: #262e30;
+    --amber: #ffb648;
+    --amber-dim: #7a5a25;
+    --red: #ff4d4d;
+    --green: #5be08a;
+    --text: #d9dedd;
+    --text-dim: #6c7679;
+  }
+  *{ box-sizing:border-box; }
+  html,body{ margin:0; padding:0; }
+  body{
+    background:
+      radial-gradient(circle at 15% -10%, rgba(255,182,72,0.06), transparent 40%),
+      var(--bg);
+    color: var(--text);
+    font-family: 'Inter', system-ui, sans-serif;
+    min-height:100vh;
+    padding: 28px 16px 60px;
+  }
+  .wrap{ max-width: 780px; margin: 0 auto; }
+
+  header{ margin-bottom: 24px; }
+  .eyebrow{
+    font-family:'Space Mono', monospace;
+    font-size: 11px;
+    letter-spacing: 0.18em;
+    color: var(--amber);
+    text-transform: uppercase;
+    display:flex; align-items:center; gap:8px;
+  }
+  .eyebrow::before{
+    content:"";
+    width:7px; height:7px; border-radius:50%;
+    background: var(--amber);
+    box-shadow: 0 0 8px var(--amber);
+  }
+  h1{
+    font-family:'Space Mono', monospace;
+    font-size: 26px;
+    margin: 8px 0 4px;
+    letter-spacing: -0.01em;
+  }
+  .sub{ color: var(--text-dim); font-size: 13.5px; line-height:1.5; max-width: 56ch; }
+
+  .panel{
+    background: var(--panel);
+    border: 1px solid var(--line);
+    border-radius: 10px;
+    padding: 20px;
+    margin-bottom: 18px;
+  }
+  .panel h2{
+    font-family:'Space Mono', monospace;
+    font-size: 12px;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: var(--text-dim);
+    margin: 0 0 14px;
+  }
+
+  label.field{ display:block; margin-bottom: 14px; }
+  label.field span{ display:block; font-size:12.5px; color: var(--text-dim); margin-bottom:6px; }
+  textarea, input[type=text]{
+    width:100%;
+    background: var(--panel-2);
+    border: 1px solid var(--line);
+    border-radius: 6px;
+    color: var(--text);
+    padding: 10px 12px;
+    font-family:'Inter', sans-serif;
+    font-size: 14px;
+    resize: vertical;
+  }
+  textarea{ min-height: 140px; line-height:1.6; }
+  textarea:focus, input[type=text]:focus{ outline:1px solid var(--amber); border-color: var(--amber); }
+
+  .row{ display:flex; gap: 12px; flex-wrap:wrap; }
+  .row > *{ flex:1; min-width: 160px; }
+
+  .filebtn{
+    display:inline-flex; align-items:center; gap:10px;
+    background: var(--panel-2);
+    border: 1px dashed var(--line);
+    border-radius: 6px;
+    padding: 12px 14px;
+    cursor:pointer;
+    font-size: 13.5px;
+    color: var(--text);
+    width:100%;
+  }
+  .filebtn:hover{ border-color: var(--amber-dim); }
+  .filebtn input{ display:none; }
+  .filename{ color: var(--amber); font-family:'Space Mono', monospace; font-size:12px; }
+
+  button{
+    font-family:'Inter', sans-serif;
+    font-weight:600;
+    font-size: 13.5px;
+    border-radius: 6px;
+    border: 1px solid var(--line);
+    background: var(--panel-2);
+    color: var(--text);
+    padding: 10px 16px;
+    cursor:pointer;
+    transition: border-color .15s, color .15s;
+  }
+  button:hover:not(:disabled){ border-color: var(--amber); color: var(--amber); }
+  button:disabled{ opacity:0.4; cursor:not-allowed; }
+  button.primary{
+    background: var(--amber);
+    color: #1a1200;
+    border-color: var(--amber);
+  }
+  button.primary:hover:not(:disabled){ color:#1a1200; filter:brightness(1.08); border-color: var(--amber); }
+  button.ghost{ background:transparent; }
+
+  /* ---- Player ---- */
+  .player{ display:flex; align-items:center; gap:14px; margin-bottom: 8px; }
+  .playpause{
+    width:44px; height:44px; border-radius:50%;
+    display:flex; align-items:center; justify-content:center;
+    background: var(--panel-2); border:1px solid var(--line);
+    flex-shrink:0; cursor:pointer; color:var(--text);
+  }
+  .playpause:hover{ border-color: var(--amber); color: var(--amber); }
+  .seek{ flex:1; }
+  input[type=range]{
+    -webkit-appearance:none; width:100%; height:4px;
+    background: var(--line); border-radius:2px; outline:none;
+  }
+  input[type=range]::-webkit-slider-thumb{
+    -webkit-appearance:none; width:13px; height:13px; border-radius:50%;
+    background: var(--amber); cursor:pointer; margin-top:-4.5px;
+    box-shadow: 0 0 6px rgba(255,182,72,0.6);
+  }
+  .times{ font-family:'Space Mono', monospace; font-size:11.5px; color: var(--text-dim); display:flex; justify-content:space-between; margin-top:4px; }
+  .speedrow{ display:flex; align-items:center; gap:8px; margin-top:10px; }
+  .speedrow span{ font-size:12px; color:var(--text-dim); }
+  .speedbtn{ padding:5px 10px; font-size:12px; }
+  .speedbtn.active{ border-color:var(--amber); color:var(--amber); }
+
+  /* ---- Prompter / REC readout ---- */
+  .rec-panel{
+    background: linear-gradient(180deg, #101413, #0c0f0e);
+    border: 1px solid var(--line);
+    border-radius: 10px;
+    padding: 26px 22px;
+    text-align:center;
+    position:relative;
+    overflow:hidden;
+    margin-bottom: 18px;
+  }
+  .rec-indicator{
+    position:absolute; top:16px; left:18px;
+    display:flex; align-items:center; gap:7px;
+    font-family:'Space Mono', monospace; font-size:11px; letter-spacing:0.12em;
+    color: var(--text-dim);
+  }
+  .rec-dot{ width:9px; height:9px; border-radius:50%; background:#3a2020; transition: all .1s; }
+  .rec-indicator.live .rec-dot{ background: var(--red); box-shadow: 0 0 10px var(--red); animation: pulse 1s infinite; }
+  .rec-indicator.live { color: var(--red); }
+  @keyframes pulse{ 0%,100%{ opacity:1 } 50%{ opacity:0.5 } }
+
+  .counter{
+    position:absolute; top:14px; right:18px;
+    font-family:'Space Mono', monospace; font-size:12.5px;
+    color: var(--amber-dim);
+    letter-spacing: 0.05em;
+  }
+
+  .prompt-prev, .prompt-next{ font-size:13px; color: var(--text-dim); min-height:18px; }
+  .prompt-current{
+    font-family:'Space Mono', monospace;
+    font-size: clamp(18px, 4vw, 26px);
+    color: var(--text);
+    margin: 14px 0;
+    line-height:1.4;
+    min-height: 36px;
+  }
+  .prompt-current.live{ color: var(--amber); text-shadow: 0 0 18px rgba(255,182,72,0.35); }
+  .prompt-current.done-all{ color: var(--green); }
+
+  .hint{
+    font-size: 12px; color: var(--text-dim); margin-top:6px;
+  }
+  kbd{
+    background: var(--panel-2); border:1px solid var(--line); border-bottom-width:2px;
+    border-radius:4px; padding:2px 8px; font-family:'Space Mono', monospace; font-size:11px; color: var(--text);
+  }
+
+  /* ---- Line list ---- */
+  .linelist{ display:flex; flex-direction:column; gap:1px; max-height: 340px; overflow-y:auto; border-radius:6px; overflow-x:hidden; }
+  .lineitem{
+    display:flex; align-items:center; gap:12px;
+    padding: 9px 12px;
+    background: var(--panel-2);
+    cursor:pointer;
+    border-left: 3px solid transparent;
+  }
+  .lineitem:hover{ background:#1d2426; }
+  .lineitem .idx{ font-family:'Space Mono', monospace; font-size:11px; color: var(--text-dim); width:24px; flex-shrink:0; }
+  .lineitem .txt{ flex:1; font-size:13.5px; }
+  .lineitem .tc{ font-family:'Space Mono', monospace; font-size:11.5px; color: var(--text-dim); white-space:nowrap; }
+  .lineitem.current{ border-left-color: var(--amber); background:#20211a; }
+  .lineitem.done .tc{ color: var(--green); }
+  .lineitem.done .txt{ color: var(--text); }
+  .lineitem.pending .txt{ color: var(--text-dim); }
+
+  .actionrow{ display:flex; gap:10px; margin-top:14px; }
+
+  /* ---- Export ---- */
+  .exportarea{
+    width:100%; min-height:160px;
+    background:#000; color: var(--green);
+    font-family:'Space Mono', monospace; font-size:12.5px; line-height:1.6;
+    border:1px solid var(--line); border-radius:6px; padding:12px;
+    white-space:pre; overflow:auto;
+  }
+  .toggle-row{ display:flex; align-items:center; gap:10px; margin-bottom:12px; font-size:13px; color: var(--text-dim); }
+  .toggle-row input{ accent-color: var(--amber); }
+
+  .hidden{ display:none !important; }
+  .progresstxt{ font-family:'Space Mono', monospace; font-size:12px; color:var(--text-dim); margin-bottom:12px; }
+
+  ::-webkit-scrollbar{ width:8px; height:8px; }
+  ::-webkit-scrollbar-thumb{ background: var(--line); border-radius:4px; }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <header>
+    <div class="eyebrow">Timecode Utility</div>
+    <h1>LRC Line Tagger</h1>
+    <div class="sub">Load your lyrics and audio, then hold <kbd>SPACE</kbd> down for the length of each line while it plays. Release it right when the line ends — start and end tags are captured automatically.</div>
+  </header>
+
+  <!-- SETUP -->
+  <div class="panel" id="setupPanel">
+    <h2>01 · Set up</h2>
+
+    <label class="field">
+      <span>Lyrics — one line per row, in order</span>
+      <textarea id="lyricsInput" placeholder="Paste your lyrics here, one line at a time...&#10;&#10;First line of the song&#10;Second line&#10;..."></textarea>
+    </label>
+
+    <div class="row">
+      <label class="field" style="flex:1;">
+        <span>Title (optional)</span>
+        <input type="text" id="metaTitle" placeholder="Song title" />
+      </label>
+      <label class="field" style="flex:1;">
+        <span>Artist (optional)</span>
+        <input type="text" id="metaArtist" placeholder="Artist name" />
+      </label>
+    </div>
+
+    <label class="field">
+      <span>Audio file</span>
+      <label class="filebtn">
+        <input type="file" id="audioInput" accept="audio/*" />
+        <span id="fileLabel">Choose an audio file (mp3, wav, m4a...)</span>
+      </label>
+    </label>
+    <div class="filename" id="fileNameShow"></div>
+
+    <div class="actionrow">
+      <button class="primary" id="startBtn" disabled>Start tagging →</button>
+    </div>
+  </div>
+
+  <!-- TAGGING -->
+  <div id="tagPanel" class="hidden">
+
+    <div class="panel">
+      <h2>02 · Playback</h2>
+      <div class="player">
+        <div class="playpause" id="playBtn">▶</div>
+        <div class="seek">
+          <input type="range" id="seekBar" min="0" max="100" value="0" step="0.01" />
+          <div class="times"><span id="curTime">00:00.00</span><span id="durTime">00:00.00</span></div>
+        </div>
+      </div>
+      <div class="speedrow">
+        <span>Speed</span>
+        <button class="speedbtn" data-speed="0.5">0.5x</button>
+        <button class="speedbtn" data-speed="0.75">0.75x</button>
+        <button class="speedbtn active" data-speed="1">1x</button>
+      </div>
+    </div>
+
+    <div class="rec-panel">
+      <div class="rec-indicator" id="recIndicator"><div class="rec-dot"></div><span>REC</span></div>
+      <div class="counter" id="lineCounter">0 / 0</div>
+      <div class="prompt-prev" id="promptPrev"></div>
+      <div class="prompt-current" id="promptCurrent">Press play, then hold space on the first line.</div>
+      <div class="prompt-next" id="promptNext"></div>
+      <div class="hint">Hold <kbd>SPACE</kbd> to mark a line · release to end it · click any line below to jump &amp; redo it</div>
+    </div>
+
+    <div class="panel">
+      <h2>03 · Lines</h2>
+      <div class="progresstxt" id="progressTxt"></div>
+      <div class="linelist" id="lineList"></div>
+      <div class="actionrow">
+        <button id="undoBtn">↺ Undo last</button>
+        <button id="resetBtn" class="ghost">Reset all timings</button>
+      </div>
+    </div>
+
+    <div class="panel" id="exportPanel">
+      <h2>04 · Export</h2>
+      <div class="toggle-row">
+        <input type="checkbox" id="endTagToggle" />
+        <label for="endTagToggle">Include end-of-line tags (extended format: <span style="color:var(--amber)">[start]text[end]</span>) — off exports standard LRC</label>
+      </div>
+      <textarea class="exportarea" id="exportPreview" readonly></textarea>
+      <div class="actionrow">
+        <button id="copyBtn">Copy to clipboard</button>
+        <button class="primary" id="downloadBtn">⬇ Download .lrc</button>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<script>
+(function(){
+  const lyricsInput = document.getElementById('lyricsInput');
+  const audioInput = document.getElementById('audioInput');
+  const fileLabel = document.getElementById('fileLabel');
+  const fileNameShow = document.getElementById('fileNameShow');
+  const startBtn = document.getElementById('startBtn');
+  const setupPanel = document.getElementById('setupPanel');
+  const tagPanel = document.getElementById('tagPanel');
+  const metaTitle = document.getElementById('metaTitle');
+  const metaArtist = document.getElementById('metaArtist');
+
+  const playBtn = document.getElementById('playBtn');
+  const seekBar = document.getElementById('seekBar');
+  const curTime = document.getElementById('curTime');
+  const durTime = document.getElementById('durTime');
+
+  const recIndicator = document.getElementById('recIndicator');
+  const lineCounter = document.getElementById('lineCounter');
+  const promptPrev = document.getElementById('promptPrev');
+  const promptCurrent = document.getElementById('promptCurrent');
+  const promptNext = document.getElementById('promptNext');
+
+  const lineListEl = document.getElementById('lineList');
+  const progressTxt = document.getElementById('progressTxt');
+  const undoBtn = document.getElementById('undoBtn');
+  const resetBtn = document.getElementById('resetBtn');
+
+  const endTagToggle = document.getElementById('endTagToggle');
+  const exportPreview = document.getElementById('exportPreview');
+  const copyBtn = document.getElementById('copyBtn');
+  const downloadBtn = document.getElementById('downloadBtn');
+
+  let audio = null;
+  let audioFile = null;
+  let lines = [];       // { text, start: number|null, end: number|null }
+  let currentIndex = 0;
+  let isHolding = false;
+
+  // ---------- SETUP ----------
+  function checkReady(){
+    startBtn.disabled = !(lyricsInput.value.trim().length > 0 && audioFile);
+  }
+  lyricsInput.addEventListener('input', checkReady);
+
+  audioInput.addEventListener('change', (e) => {
+    const f = e.target.files[0];
+    if(!f) return;
+    audioFile = f;
+    fileLabel.textContent = 'Change audio file';
+    fileNameShow.textContent = f.name;
+    checkReady();
+  });
+
+  startBtn.addEventListener('click', () => {
+    const raw = lyricsInput.value.split('\n').map(s => s.trim()).filter(s => s.length > 0);
+    if(raw.length === 0) return;
+    lines = raw.map(text => ({ text, start: null, end: null }));
+    currentIndex = 0;
+
+    audio = new Audio(URL.createObjectURL(audioFile));
+    audio.preload = 'auto';
+    audio.addEventListener('loadedmetadata', () => {
+      seekBar.max = audio.duration;
+      durTime.textContent = fmt(audio.duration);
+    });
+    audio.addEventListener('timeupdate', () => {
+      seekBar.value = audio.currentTime;
+      curTime.textContent = fmt(audio.currentTime);
+    });
+    audio.addEventListener('play', () => playBtn.textContent = '❚❚');
+    audio.addEventListener('pause', () => playBtn.textContent = '▶');
+    audio.addEventListener('ended', () => playBtn.textContent = '▶');
+
+    setupPanel.classList.add('hidden');
+    tagPanel.classList.remove('hidden');
+    renderLineList();
+    renderPrompt();
+    renderExport();
+  });
+
+  // ---------- PLAYER ----------
+  playBtn.addEventListener('click', () => {
+    if(!audio) return;
+    if(audio.paused) audio.play(); else audio.pause();
+  });
+  seekBar.addEventListener('input', () => {
+    if(!audio) return;
+    audio.currentTime = parseFloat(seekBar.value);
+  });
+  document.querySelectorAll('.speedbtn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      document.querySelectorAll('.speedbtn').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      if(audio) audio.playbackRate = parseFloat(btn.dataset.speed);
+    });
+  });
+
+  // ---------- TIME FORMAT ----------
+  function fmt(t){
+    if(t == null || isNaN(t)) return '00:00.00';
+    const m = Math.floor(t / 60);
+    const s = (t % 60).toFixed(2);
+    return String(m).padStart(2,'0') + ':' + (s < 10 ? '0' : '') + s;
+  }
+
+  // ---------- RECORDING LOGIC ----------
+  function isTypingTarget(el){
+    return el && (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA');
+  }
+
+  function startLine(){
+    if(!audio || currentIndex >= lines.length) return;
+    lines[currentIndex].start = audio.currentTime;
+    lines[currentIndex].end = null;
+    recIndicator.classList.add('live');
+    renderLineList();
+    renderPrompt();
+  }
+
+  function endLine(){
+    if(!audio || currentIndex >= lines.length) return;
+    let end = audio.currentTime;
+    const start = lines[currentIndex].start;
+    if(start != null && end <= start) end = start + 0.05;
+    lines[currentIndex].end = end;
+    recIndicator.classList.remove('live');
+    currentIndex++;
+    renderLineList();
+    renderPrompt();
+    renderExport();
+  }
+
+  document.addEventListener('keydown', (e) => {
+    if(e.code !== 'Space') return;
+    if(isTypingTarget(e.target)) return;
+    e.preventDefault();
+    if(tagPanel.classList.contains('hidden')) return;
+    if(isHolding) return;
+    isHolding = true;
+    startLine();
+  });
+
+  document.addEventListener('keyup', (e) => {
+    if(e.code !== 'Space') return;
+    if(isTypingTarget(e.target)) return;
+    e.preventDefault();
+    if(tagPanel.classList.contains('hidden')) return;
+    if(!isHolding) return;
+    isHolding = false;
+    endLine();
+  });
+
+  // ---------- UI RENDER ----------
+  function renderPrompt(){
+    const total = lines.length;
+    lineCounter.textContent = Math.min(currentIndex, total) + ' / ' + total;
+
+    if(currentIndex >= total){
+      promptPrev.textContent = total > 1 ? lines[total-2].text : '';
+      promptCurrent.textContent = 'All lines tagged.';
+      promptCurrent.classList.add('done-all');
+      promptCurrent.classList.remove('live');
+      promptNext.textContent = '';
+      return;
+    }
+    promptCurrent.classList.remove('done-all');
+    promptPrev.textContent = currentIndex > 0 ? lines[currentIndex - 1].text : '';
+    promptCurrent.textContent = lines[currentIndex].text;
+    promptNext.textContent = currentIndex + 1 < total ? lines[currentIndex + 1].text : '';
+    if(isHolding) promptCurrent.classList.add('live'); else promptCurrent.classList.remove('live');
+  }
+
+  function renderLineList(){
+    lineListEl.innerHTML = '';
+    let doneCount = 0;
+    lines.forEach((line, i) => {
+      const done = line.start != null && line.end != null;
+      if(done) doneCount++;
+      const div = document.createElement('div');
+      div.className = 'lineitem ' + (done ? 'done' : 'pending') + (i === currentIndex ? ' current' : '');
+      const idx = document.createElement('div'); idx.className = 'idx'; idx.textContent = String(i+1).padStart(2,'0');
+      const txt = document.createElement('div'); txt.className = 'txt'; txt.textContent = line.text;
+      const tc = document.createElement('div'); tc.className = 'tc';
+      tc.textContent = done ? fmt(line.start) + ' → ' + fmt(line.end) : (line.start != null ? fmt(line.start) + ' → ...' : '—');
+      div.appendChild(idx); div.appendChild(txt); div.appendChild(tc);
+      div.addEventListener('click', () => {
+        lines[i].start = null;
+        lines[i].end = null;
+        currentIndex = i;
+        renderLineList();
+        renderPrompt();
+        renderExport();
+      });
+      lineListEl.appendChild(div);
+    });
+    progressTxt.textContent = doneCount + ' of ' + lines.length + ' lines tagged';
+  }
+
+  undoBtn.addEventListener('click', () => {
+    if(currentIndex === 0) return;
+    currentIndex--;
+    lines[currentIndex].start = null;
+    lines[currentIndex].end = null;
+    isHolding = false;
+    recIndicator.classList.remove('live');
+    renderLineList();
+    renderPrompt();
+    renderExport();
+  });
+
+  resetBtn.addEventListener('click', () => {
+    lines.forEach(l => { l.start = null; l.end = null; });
+    currentIndex = 0;
+    isHolding = false;
+    recIndicator.classList.remove('live');
+    renderLineList();
+    renderPrompt();
+    renderExport();
+  });
+
+  // ---------- EXPORT ----------
+  function buildLrc(){
+    const withEnd = endTagToggle.checked;
+    let out = '';
+    if(metaTitle.value.trim()) out += '[ti:' + metaTitle.value.trim() + ']\n';
+    if(metaArtist.value.trim()) out += '[ar:' + metaArtist.value.trim() + ']\n';
+    if(out) out += '\n';
+    lines.forEach(line => {
+      if(line.start == null) return;
+      if(withEnd && line.end != null){
+        out += '[' + fmt(line.start) + ']' + line.text + '[' + fmt(line.end) + ']\n';
+      } else {
+        out += '[' + fmt(line.start) + ']' + line.text + '\n';
+      }
+    });
+    return out;
+  }
+
+  function renderExport(){
+    exportPreview.value = buildLrc();
+  }
+  endTagToggle.addEventListener('change', renderExport);
+
+  copyBtn.addEventListener('click', () => {
+    exportPreview.select();
+    navigator.clipboard.writeText(exportPreview.value).then(() => {
+      copyBtn.textContent = 'Copied ✓';
+      setTimeout(() => copyBtn.textContent = 'Copy to clipboard', 1200);
+    });
+  });
+
+  downloadBtn.addEventListener('click', () => {
+    const blob = new Blob([buildLrc()], { type: 'text/plain' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    const name = (metaTitle.value.trim() || (audioFile ? audioFile.name.replace(/\.[^.]+$/, '') : 'lyrics'));
+    a.href = url;
+    a.download = name + '.lrc';
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  });
+
+})();
+</script>
+</body>
+</html>
