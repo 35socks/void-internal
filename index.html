@@ -141,6 +141,10 @@ main.reveal{ opacity:1; transform:translateY(0); }
 .forgot{
     font-size:10px; letter-spacing:.14em; color:var(--dim); text-transform:uppercase;
     text-decoration:none;
+    background:none;
+    border:none;
+    cursor:pointer;
+    font-family:inherit;
 }
 .forgot:hover{ color:var(--paper); }
 
@@ -161,7 +165,7 @@ main.reveal{ opacity:1; transform:translateY(0); }
     overflow:hidden;
 }
 .submit-btn:hover{ background:transparent; color:var(--paper); }
-.submit-btn:disabled{ cursor:default; }
+.submit-btn:disabled{ cursor:default; opacity:.6; }
 
 .msg{
     margin-top:16px;
@@ -236,8 +240,8 @@ footer{
 
             <form id="loginForm">
                 <div class="field">
-                    <label for="employeeId">Employee ID or Email</label>
-                    <input type="text" id="employeeId" placeholder="000001" autocomplete="username" required>
+                    <label for="employeeId">Email</label>
+                    <input type="email" id="employeeId" placeholder="you@voidrecs.com" autocomplete="username" required>
                 </div>
                 <div class="field">
                     <label for="password">Password</label>
@@ -249,7 +253,7 @@ footer{
                         <input type="checkbox" id="remember">
                         Remember Me
                     </label>
-                    <a class="forgot" href="#">Forgot?</a>
+                    <button type="button" class="forgot" id="forgotBtn">Forgot?</button>
                 </div>
 
                 <button type="submit" class="submit-btn" id="submitBtn">Authenticate</button>
@@ -259,7 +263,7 @@ footer{
         </div>
     </div>
 
-    <a class="back-link" href="#">&larr; Back to voidrecs.com</a>
+    <a class="back-link" href="https://voidrecs.com">&larr; Back to voidrecs.com</a>
 
     <footer>VOID RECORDS &middot; GLASGOW &middot; INTERNAL USE ONLY<br>UNAUTHORISED ACCESS PROHIBITED</footer>
 </main>
@@ -309,41 +313,114 @@ footer{
         document.getElementById('main').classList.add('reveal');
     }, 1500);
 })();
+</script>
 
-/* ---------------- dummy auth flow ---------------- */
-(function(){
-    var form = document.getElementById('loginForm');
-    var btn = document.getElementById('submitBtn');
-    var msg = document.getElementById('loginMsg');
-    var msgText = document.getElementById('loginMsgText');
+<!-- ---------------- Firebase auth ---------------- -->
+<script type="module">
+import { initializeApp } from "https://www.gstatic.com/firebasejs/12.18.0/firebase-app.js";
+import { getAnalytics } from "https://www.gstatic.com/firebasejs/12.18.0/firebase-analytics.js";
+import {
+    getAuth,
+    signInWithEmailAndPassword,
+    setPersistence,
+    browserLocalPersistence,
+    browserSessionPersistence,
+    sendPasswordResetEmail,
+    onAuthStateChanged
+} from "https://www.gstatic.com/firebasejs/12.18.0/firebase-auth.js";
 
-    form.addEventListener('submit', function(e){
-        e.preventDefault();
-        var id = document.getElementById('employeeId').value.trim();
-        var pw = document.getElementById('password').value.trim();
+const firebaseConfig = {
+    apiKey: "AIzaSyBvaCkVqaFNgoXP1K-2MF-PV5wzriNQnLQ",
+    authDomain: "void-internal-74981.firebaseapp.com",
+    projectId: "void-internal-74981",
+    storageBucket: "void-internal-74981.firebasestorage.app",
+    messagingSenderId: "321500849804",
+    appId: "1:321500849804:web:abea7b3fff95afdd953da9",
+    measurementId: "G-MK95S9LNHX"
+};
 
-        msg.classList.remove('error');
-        msg.classList.add('show');
+const app = initializeApp(firebaseConfig);
+try { getAnalytics(app); } catch (e) { /* analytics can fail on file:// or blocked contexts, that's fine */ }
+const auth = getAuth(app);
 
-        if(!id || !pw){
-            msg.classList.add('error');
-            msgText.textContent = 'ENTER YOUR CREDENTIALS TO CONTINUE';
-            return;
-        }
+const form = document.getElementById('loginForm');
+const btn = document.getElementById('submitBtn');
+const msg = document.getElementById('loginMsg');
+const msgText = document.getElementById('loginMsgText');
+const forgotBtn = document.getElementById('forgotBtn');
 
-        btn.disabled = true;
-        btn.textContent = 'AUTHENTICATING...';
-        msgText.textContent = 'VERIFYING CREDENTIALS...';
+function showMsg(text, isError){
+    msg.classList.add('show');
+    msg.classList.toggle('error', !!isError);
+    msgText.textContent = text;
+}
+
+function friendlyError(code){
+    switch(code){
+        case 'auth/invalid-email': return 'INVALID EMAIL FORMAT';
+        case 'auth/user-disabled': return 'ACCOUNT DISABLED';
+        case 'auth/user-not-found':
+        case 'auth/wrong-password':
+        case 'auth/invalid-credential': return 'INCORRECT EMAIL OR PASSWORD';
+        case 'auth/too-many-requests': return 'TOO MANY ATTEMPTS — TRY AGAIN LATER';
+        case 'auth/network-request-failed': return 'NETWORK ERROR — CHECK CONNECTION';
+        default: return 'AUTHENTICATION FAILED';
+    }
+}
+
+// If already signed in, skip straight to the portal
+onAuthStateChanged(auth, function(user){
+    if (user) {
+        window.location.href = '/portal';
+    }
+});
+
+form.addEventListener('submit', async function(e){
+    e.preventDefault();
+
+    const email = document.getElementById('employeeId').value.trim();
+    const password = document.getElementById('password').value.trim();
+    const remember = document.getElementById('remember').checked;
+
+    if(!email || !password){
+        showMsg('ENTER YOUR CREDENTIALS TO CONTINUE', true);
+        return;
+    }
+
+    btn.disabled = true;
+    btn.textContent = 'AUTHENTICATING...';
+    showMsg('VERIFYING CREDENTIALS...', false);
+
+    try {
+        await setPersistence(auth, remember ? browserLocalPersistence : browserSessionPersistence);
+        await signInWithEmailAndPassword(auth, email, password);
+
+        btn.textContent = 'ACCESS GRANTED';
+        showMsg('REDIRECTING TO INTERNAL SYSTEMS...', false);
 
         setTimeout(function(){
-            btn.textContent = 'ACCESS GRANTED';
-            msgText.textContent = 'REDIRECTING TO INTERNAL SYSTEMS...';
-            setTimeout(function(){
-                window.location.href = 'https://internal.voidrecs.com';
-            }, 900);
-        }, 1100);
-    });
-})();
+            window.location.href = '/portal';
+        }, 700);
+    } catch (err) {
+        btn.disabled = false;
+        btn.textContent = 'Authenticate';
+        showMsg(friendlyError(err.code), true);
+    }
+});
+
+forgotBtn.addEventListener('click', async function(){
+    const email = document.getElementById('employeeId').value.trim();
+    if(!email){
+        showMsg('ENTER YOUR EMAIL FIRST', true);
+        return;
+    }
+    try {
+        await sendPasswordResetEmail(auth, email);
+        showMsg('PASSWORD RESET EMAIL SENT', false);
+    } catch (err) {
+        showMsg(friendlyError(err.code), true);
+    }
+});
 </script>
 </body>
 </html>
