@@ -1,0 +1,368 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>internal.voidrecs.com — Portal</title>
+<style>
+@font-face {
+    font-family: "Ndot 55";
+    src: url("https://db.onlinewebfonts.com/t/5f21b8d13dad527377311ec2d5388bdf.eot");
+    src: url("https://db.onlinewebfonts.com/t/5f21b8d13dad527377311ec2d5388bdf.eot?#iefix") format("embedded-opentype"),
+    url("https://db.onlinewebfonts.com/t/5f21b8d13dad527377311ec2d5388bdf.woff2") format("woff2"),
+    url("https://db.onlinewebfonts.com/t/5f21b8d13dad527377311ec2d5388bdf.woff") format("woff"),
+    url("https://db.onlinewebfonts.com/t/5f21b8d13dad527377311ec2d5388bdf.ttf") format("truetype"),
+    url("https://db.onlinewebfonts.com/t/5f21b8d13dad527377311ec2d5388bdf.svg#Ndot 55") format("svg");
+    font-display: swap;
+}
+@import url('https://fonts.googleapis.com/css2?family=Open+Sans:wght@400;500;600;700&display=swap');
+
+:root{
+    --void:#000000;
+    --paper:#ffffff;
+    --dim:#6a6a6a;
+    --dim-2:#333333;
+    --panel:#0a0a0a;
+    --panel-2:#0e0e0e;
+    --line:#262626;
+    --ease: cubic-bezier(.16,.84,.44,1);
+}
+*{ margin:0; padding:0; box-sizing:border-box; }
+html,body{ background:var(--void); color:var(--paper); font-family:'Open Sans',sans-serif; width:100%; min-height:100%; }
+a{ color:inherit; text-decoration:none; }
+button{ font-family:inherit; }
+
+#dotfield{ position:fixed; inset:0; z-index:0; display:block; }
+.noise{
+    position:fixed; inset:0; z-index:1; pointer-events:none; opacity:.035;
+    background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='90' height='90'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+}
+.scanline-overlay{
+    position:fixed; inset:0; z-index:1; pointer-events:none;
+    background:repeating-linear-gradient(to bottom, rgba(255,255,255,0.018) 0px, rgba(255,255,255,0.018) 1px, transparent 1px, transparent 3px);
+}
+
+/* ---------------- gate (auth check) ---------------- */
+#gate{
+    position:fixed; inset:0; z-index:30; background:var(--void);
+    display:flex; flex-direction:column; align-items:flex-start; justify-content:center;
+    padding:6vw; font-family:'Open Sans',monospace; letter-spacing:.08em; font-size:13px; color:var(--dim);
+    transition:opacity .5s var(--ease), visibility .5s;
+}
+#gate.hide{ opacity:0; visibility:hidden; pointer-events:none; }
+#gate .cursor{ display:inline-block; width:8px; height:14px; background:var(--paper); margin-left:4px; animation:blink 1s steps(1) infinite; vertical-align:middle; }
+@keyframes blink{ 0%,49%{opacity:1;} 50%,100%{opacity:0;} }
+
+/* ---------------- layout ---------------- */
+#app{ position:relative; z-index:5; opacity:0; transform:translateY(14px); transition:opacity .9s var(--ease) .1s, transform .9s var(--ease) .1s; }
+#app.reveal{ opacity:1; transform:translateY(0); }
+
+header.top{
+    display:flex; align-items:center; justify-content:space-between;
+    padding:22px 6vw; border-bottom:1px solid var(--line);
+}
+.wordmark{ font-family:'Ndot 55','Open Sans',monospace; font-size:18px; letter-spacing:.1em; }
+.identity{ display:flex; align-items:center; gap:16px; }
+.identity .who{ text-align:right; }
+.identity .name{ font-size:12px; letter-spacing:.08em; }
+.identity .role{ font-size:10px; letter-spacing:.18em; color:var(--dim); text-transform:uppercase; margin-top:2px; }
+.avatar{
+    width:34px; height:34px; border:1px solid var(--line); display:flex; align-items:center; justify-content:center;
+    font-size:11px; letter-spacing:.05em; color:var(--paper); background:var(--panel);
+}
+.signout{
+    margin-left:8px; background:transparent; border:1px solid var(--line); color:var(--dim);
+    font-size:10px; letter-spacing:.16em; text-transform:uppercase; padding:9px 14px; cursor:pointer;
+    transition:border-color .25s var(--ease), color .25s var(--ease);
+}
+.signout:hover{ border-color:var(--paper); color:var(--paper); }
+
+main.wrap{ padding:5vh 6vw 8vh; max-width:1180px; margin:0 auto; }
+
+.greet-row{ display:flex; align-items:baseline; justify-content:space-between; flex-wrap:wrap; gap:12px; margin-bottom:8px; }
+.greet{ font-size:clamp(20px,3vw,28px); letter-spacing:.02em; }
+.eyebrow{
+    font-size:11px; letter-spacing:.32em; color:var(--dim);
+    text-transform:uppercase; display:flex; align-items:center; gap:10px;
+}
+.eyebrow .dot-pulse{ width:6px; height:6px; border-radius:50%; background:var(--paper); animation:pulse 1.6s ease-in-out infinite; }
+@keyframes pulse{ 0%,100%{opacity:.25; transform:scale(.8);} 50%{opacity:1; transform:scale(1);} }
+.datestamp{ font-size:10.5px; letter-spacing:.14em; color:var(--dim-2); text-transform:uppercase; margin-bottom:5vh; }
+
+.section-label{
+    font-size:10.5px; letter-spacing:.24em; color:var(--dim); text-transform:uppercase;
+    margin:5vh 0 16px; display:flex; align-items:center; gap:10px;
+}
+.section-label::after{ content:''; flex:1; height:1px; background:var(--line); }
+.section-label:first-of-type{ margin-top:0; }
+
+/* tool grid */
+.grid{ display:grid; grid-template-columns:repeat(auto-fill, minmax(230px,1fr)); gap:1px; background:var(--line); border:1px solid var(--line); }
+.card{
+    position:relative; background:var(--panel); padding:22px 20px; min-height:132px;
+    display:flex; flex-direction:column; justify-content:space-between; gap:14px;
+    transition:background .25s var(--ease);
+    cursor:pointer;
+}
+.card:hover{ background:var(--panel-2); }
+.card:hover .arrow{ transform:translateX(3px); opacity:1; }
+.card .top-row{ display:flex; align-items:flex-start; justify-content:space-between; }
+.card .tag{
+    font-size:9px; letter-spacing:.16em; color:var(--dim-2); text-transform:uppercase; border:1px solid var(--line);
+    padding:3px 7px;
+}
+.card .title{ font-size:14px; letter-spacing:.03em; }
+.card .desc{ font-size:11px; color:var(--dim); line-height:1.5; }
+.card .arrow{ font-size:13px; opacity:.5; transition:transform .25s var(--ease), opacity .25s var(--ease); align-self:flex-end; }
+.card.disabled{ cursor:default; opacity:.45; }
+.card.disabled:hover{ background:var(--panel); }
+.card.disabled .arrow{ display:none; }
+
+/* stat strip */
+.stats{ display:grid; grid-template-columns:repeat(auto-fit, minmax(150px,1fr)); gap:1px; background:var(--line); border:1px solid var(--line); margin-bottom:1px; }
+.stat{ background:var(--panel); padding:18px 20px; }
+.stat .n{ font-size:22px; letter-spacing:.02em; }
+.stat .l{ font-size:9.5px; letter-spacing:.18em; color:var(--dim); text-transform:uppercase; margin-top:6px; }
+
+/* roster list */
+.roster{ border:1px solid var(--line); }
+.roster-row{
+    display:flex; align-items:center; justify-content:space-between; padding:14px 18px;
+    border-bottom:1px solid var(--line); font-size:12px;
+}
+.roster-row:last-child{ border-bottom:none; }
+.roster-row .r-name{ letter-spacing:.03em; }
+.roster-row .r-role{ font-size:10px; letter-spacing:.14em; color:var(--dim); text-transform:uppercase; }
+
+footer{
+    margin-top:8vh; padding:24px 6vw; border-top:1px solid var(--line);
+    font-size:9.5px; letter-spacing:.2em; color:var(--dim-2); text-transform:uppercase; text-align:center; line-height:1.8;
+}
+
+@media (max-width:640px){
+    header.top{ padding:18px 5vw; }
+    .identity .who{ display:none; }
+    main.wrap{ padding:4vh 5vw 6vh; }
+}
+
+@media (prefers-reduced-motion: reduce){
+    *{ animation-duration:.001s !important; animation-iteration-count:1 !important; transition-duration:.001s !important; }
+}
+</style>
+</head>
+<body>
+
+<canvas id="dotfield"></canvas>
+<div class="noise"></div>
+<div class="scanline-overlay"></div>
+
+<div id="gate">VOID// VERIFYING SESSION<span class="cursor"></span></div>
+
+<div id="app">
+    <header class="top">
+        <div class="wordmark">VOID RECORDS</div>
+        <div class="identity">
+            <div class="avatar" id="avatarInitials">--</div>
+            <div class="who">
+                <div class="name" id="userName">&mdash;</div>
+                <div class="role" id="userEmail">&mdash;</div>
+            </div>
+            <button class="signout" id="signOutBtn">Sign Out</button>
+        </div>
+    </header>
+
+    <main class="wrap">
+        <div class="eyebrow"><span class="dot-pulse"></span>INTERNAL SYSTEMS</div>
+        <div class="greet-row">
+            <div class="greet" id="greeting">Welcome back.</div>
+        </div>
+        <div class="datestamp" id="datestamp">&mdash;</div>
+
+        <div class="stats">
+            <div class="stat"><div class="n">3</div><div class="l">Active Campaigns</div></div>
+            <div class="stat"><div class="n">3</div><div class="l">Roster Artists</div></div>
+            <div class="stat"><div class="n">4</div><div class="l">Internal Tools</div></div>
+            <div class="stat"><div class="n">GLA</div><div class="l">Base Of Operations</div></div>
+        </div>
+
+        <div class="section-label">Tools</div>
+        <div class="grid">
+            <a class="card" href="/tools/lrc-creator" style="color:inherit;">
+                <div class="top-row"><span class="tag">Tool</span></div>
+                <div>
+                    <div class="title">LRC Creator</div>
+                    <div class="desc">Build synced lyric files for releases.</div>
+                </div>
+                <div class="arrow">&rarr;</div>
+            </a>
+            <a class="card" href="/campaigns" style="color:inherit;">
+                <div class="top-row"><span class="tag">Tool</span></div>
+                <div>
+                    <div class="title">Campaign Planner</div>
+                    <div class="desc">Track release &amp; promo campaigns end to end.</div>
+                </div>
+                <div class="arrow">&rarr;</div>
+            </a>
+            <a class="card" href="/roster" style="color:inherit;">
+                <div class="top-row"><span class="tag">Tool</span></div>
+                <div>
+                    <div class="title">Artist Roster</div>
+                    <div class="desc">Contacts, notes &amp; status for signed artists.</div>
+                </div>
+                <div class="arrow">&rarr;</div>
+            </a>
+            <div class="card disabled">
+                <div class="top-row"><span class="tag">Soon</span></div>
+                <div>
+                    <div class="title">Release Calendar</div>
+                    <div class="desc">Unified timeline across the label.</div>
+                </div>
+            </div>
+        </div>
+
+        <div class="section-label">Active Campaigns</div>
+        <div class="grid">
+            <a class="card" href="#" style="color:inherit;">
+                <div class="top-row"><span class="tag">Live Show</span></div>
+                <div>
+                    <div class="title">Rayen Noth &mdash; The Audio Lounge</div>
+                    <div class="desc">Maryhill DIY show, targeting March 2027.</div>
+                </div>
+                <div class="arrow">&rarr;</div>
+            </a>
+            <a class="card" href="#" style="color:inherit;">
+                <div class="top-row"><span class="tag">Premiere</span></div>
+                <div>
+                    <div class="title">Paparazzi &mdash; Picturehouse Gourock</div>
+                    <div class="desc">Screening premiere, 18 September 2026.</div>
+                </div>
+                <div class="arrow">&rarr;</div>
+            </a>
+            <a class="card" href="#" style="color:inherit;">
+                <div class="top-row"><span class="tag">Outreach</span></div>
+                <div>
+                    <div class="title">The Tranquils</div>
+                    <div class="desc">Outreach copy in progress.</div>
+                </div>
+                <div class="arrow">&rarr;</div>
+            </a>
+        </div>
+
+        <div class="section-label">Team</div>
+        <div class="roster">
+            <div class="roster-row"><span class="r-name">Cameron Bell</span><span class="r-role">Employee #000001</span></div>
+            <div class="roster-row"><span class="r-name">Cam</span><span class="r-role">Campaign Collaborator</span></div>
+            <div class="roster-row"><span class="r-name">Glenn</span><span class="r-role">Campaign Collaborator</span></div>
+            <div class="roster-row"><span class="r-name">Santi</span><span class="r-role">Campaign Collaborator</span></div>
+        </div>
+    </main>
+
+    <footer>VOID RECORDS &middot; GLASGOW &middot; INTERNAL USE ONLY<br>UNAUTHORISED ACCESS PROHIBITED</footer>
+</div>
+
+<script>
+/* ---------------- ambient dot-grid background ---------------- */
+(function(){
+    var canvas=document.getElementById('dotfield'), ctx=canvas.getContext('2d');
+    var w,h,cols,rows,spacing=26,dots=[];
+    var mouse={x:-9999,y:-9999};
+    var reduced=window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    function resize(){
+        w=canvas.width=window.innerWidth; h=canvas.height=window.innerHeight;
+        cols=Math.ceil(w/spacing)+2; rows=Math.ceil(h/spacing)+2; dots=[];
+        for(var y=0;y<rows;y++){ for(var x=0;x<cols;x++){
+            dots.push({x:x*spacing,y:y*spacing,base:Math.random()*0.16+0.04,phase:Math.random()*Math.PI*2,speed:Math.random()*0.6+0.3});
+        }}
+    }
+    window.addEventListener('resize',resize);
+    window.addEventListener('mousemove',function(e){mouse.x=e.clientX;mouse.y=e.clientY;});
+    window.addEventListener('mouseleave',function(){mouse.x=-9999;mouse.y=-9999;});
+    var t=0;
+    function draw(){
+        ctx.clearRect(0,0,w,h);
+        for(var i=0;i<dots.length;i++){
+            var d=dots[i];
+            var flicker= reduced? d.base : d.base+Math.sin(t*d.speed+d.phase)*0.05;
+            var dx=d.x-mouse.x, dy=d.y-mouse.y, dist=Math.sqrt(dx*dx+dy*dy);
+            var boost=Math.max(0,1-dist/180)*0.55;
+            var alpha=Math.min(1,flicker+boost);
+            ctx.fillStyle='rgba(255,255,255,'+alpha+')';
+            var r=1+boost*1.3;
+            ctx.beginPath(); ctx.arc(d.x,d.y,r,0,Math.PI*2); ctx.fill();
+        }
+        t+=0.02; requestAnimationFrame(draw);
+    }
+    resize(); draw();
+})();
+
+function formatDatestamp(){
+    var now = new Date();
+    var opts = { weekday:'long', year:'numeric', month:'long', day:'numeric' };
+    return now.toLocaleDateString('en-GB', opts).toUpperCase() + ' \u00b7 ' +
+        now.toLocaleTimeString('en-GB', { hour:'2-digit', minute:'2-digit' });
+}
+document.getElementById('datestamp').textContent = formatDatestamp();
+</script>
+
+<!-- ---------------- Firebase auth guard ---------------- -->
+<script type="module">
+import { initializeApp } from "https://www.gstatic.com/firebasejs/12.18.0/firebase-app.js";
+import { getAnalytics } from "https://www.gstatic.com/firebasejs/12.18.0/firebase-analytics.js";
+import { getAuth, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/12.18.0/firebase-auth.js";
+
+const firebaseConfig = {
+    apiKey: "AIzaSyBvaCkVqaFNgoXP1K-2MF-PV5wzriNQnLQ",
+    authDomain: "void-internal-74981.firebaseapp.com",
+    projectId: "void-internal-74981",
+    storageBucket: "void-internal-74981.firebasestorage.app",
+    messagingSenderId: "321500849804",
+    appId: "1:321500849804:web:abea7b3fff95afdd953da9",
+    measurementId: "G-MK95S9LNHX"
+};
+
+const app = initializeApp(firebaseConfig);
+try { getAnalytics(app); } catch (e) { /* fine if it fails outside a live hosted context */ }
+const auth = getAuth(app);
+
+const gate = document.getElementById('gate');
+const appEl = document.getElementById('app');
+const userName = document.getElementById('userName');
+const userEmail = document.getElementById('userEmail');
+const avatarInitials = document.getElementById('avatarInitials');
+const greeting = document.getElementById('greeting');
+const signOutBtn = document.getElementById('signOutBtn');
+
+function initialsFrom(nameOrEmail){
+    var base = nameOrEmail.split('@')[0];
+    var parts = base.replace(/[._-]+/g,' ').trim().split(' ');
+    var letters = parts.slice(0,2).map(function(p){ return p.charAt(0).toUpperCase(); }).join('');
+    return letters || '??';
+}
+
+onAuthStateChanged(auth, function(user){
+    if (!user) {
+        window.location.href = '/login';
+        return;
+    }
+
+    const displayName = user.displayName || user.email.split('@')[0];
+    userName.textContent = displayName;
+    userEmail.textContent = user.email;
+    avatarInitials.textContent = initialsFrom(displayName || user.email);
+    greeting.textContent = 'Welcome back, ' + displayName + '.';
+
+    gate.classList.add('hide');
+    appEl.classList.add('reveal');
+});
+
+signOutBtn.addEventListener('click', async function(){
+    try {
+        await signOut(auth);
+        window.location.href = '/login';
+    } catch (err) {
+        console.error('Sign out failed', err);
+    }
+});
+</script>
+</body>
+</html>
