@@ -1,0 +1,262 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Is it really lossless?</title>
+<style>
+:root{--bg:#eef0f6;--panel:#fff;--fg:#14183a;--mut:#5d6385;--line:#d5d9ea;--acc:#3b2bff;--ok:#0f7b5f;--warn:#b45f06;--bad:#d1243b;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#0d1020;--panel:#151a33;--fg:#e9ecff;--mut:#9aa1cc;--line:#262d54;--acc:#8c9cff;--ok:#43d6a6;--warn:#f5b25a;--bad:#ff6b80;color-scheme:dark}}
+:root[data-theme="dark"]{--bg:#0d1020;--panel:#151a33;--fg:#e9ecff;--mut:#9aa1cc;--line:#262d54;--acc:#8c9cff;--ok:#43d6a6;--warn:#f5b25a;--bad:#ff6b80;color-scheme:dark}
+html{scroll-padding-top:env(safe-area-inset-top,0px)}
+*,*::before,*::after{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--fg);font:15px/1.55 system-ui,-apple-system,"Segoe UI",sans-serif}
+main{max-width:940px;margin:0 auto;padding:30px 18px 64px}
+h1{font:700 clamp(30px,6vw,46px)/1.05 ui-serif,Georgia,"Times New Roman",serif;margin:0 0 10px;letter-spacing:-.02em}
+.lede{color:var(--mut);margin:0 0 24px;max-width:62ch}
+#drop{display:block;border:2px dashed var(--line);border-radius:6px;padding:40px 18px;text-align:center;background:var(--panel);cursor:pointer}
+#drop.on,#drop:hover,#drop:focus-within{border-color:var(--acc);background:color-mix(in srgb,var(--acc) 7%,var(--panel))}
+#drop strong{font:600 19px ui-serif,Georgia,serif}
+#drop span{display:block;color:var(--mut);margin-top:4px}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:6px;padding:18px 20px;margin-top:18px}
+.card h2{font:600 17px ui-serif,Georgia,serif;margin:0 0 10px}
+.verdict{border-left:8px solid var(--mut)}
+.verdict.ok{border-left-color:var(--ok)}.verdict.warn{border-left-color:var(--warn)}.verdict.bad{border-left-color:var(--bad)}
+.verdict h3{font:700 clamp(24px,4.5vw,34px)/1.15 ui-serif,Georgia,serif;margin:0 0 6px}
+.ok h3{color:var(--ok)}.warn h3{color:var(--warn)}.bad h3{color:var(--bad)}
+.fname{color:var(--mut);margin:0 0 8px;word-break:break-all}
+.find{list-style:none;margin:10px 0 0;padding:0}
+.find li{padding:8px 0 8px 26px;border-top:1px solid var(--line);position:relative}
+.find li::before{position:absolute;left:2px;font-weight:700}
+.find .ok::before{content:"✓";color:var(--ok)}.find .warn::before{content:"!";color:var(--warn)}.find .bad::before{content:"✗";color:var(--bad)}
+.scroll{overflow-x:auto}
+table{width:100%;border-collapse:collapse;font-size:14px;font-variant-numeric:tabular-nums}
+td{padding:6px 10px 6px 0;border-top:1px solid var(--line);vertical-align:top}
+td:first-child{color:var(--mut);white-space:nowrap;width:1%;padding-right:20px}
+td:last-child{overflow-wrap:anywhere;white-space:pre-wrap}
+canvas{width:100%;display:block;border-radius:4px;background:#0b0b10}
+.legend{color:var(--mut);font-size:13px;margin:8px 0 0}
+.art{float:right;width:132px;height:132px;object-fit:cover;border-radius:4px;border:1px solid var(--line);margin:0 0 10px 14px}
+footer{margin-top:26px;color:var(--mut);font-size:13px;max-width:70ch}
+</style>
+</head>
+<body>
+<main>
+<h1>Is it really lossless?</h1>
+<p class="lede">Drop in an audio file. It stays on your device: nothing is uploaded. The page looks for the frequency cut-off that MP3 and AAC encoders leave behind, and reads every metadata tag it can find.</p>
+<label id="drop"><input id="file" type="file" accept="audio/*,.flac,.wav,.aif,.aiff,.m4a,.mp3,.ogg,.opus,.wv,.ape" hidden><strong>Drop an audio file here</strong><span>or click to choose. FLAC, WAV, AIFF, ALAC, MP3, AAC, Ogg and more.</span></label>
+<div id="out"></div>
+<footer>These are heuristics. A clean result is strong evidence but not proof, and a low-pass filter can also come from mastering. Decoding happens in your browser, so ALAC and rarer formats depend on what it supports.</footer>
+</main>
+<script>
+'use strict';
+const $=s=>document.querySelector(s),out=$('#out');
+const esc=s=>String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const u32=(b,o)=>((b[o]<<24)|(b[o+1]<<16)|(b[o+2]<<8)|b[o+3])>>>0,u16=(b,o)=>(b[o]<<8)|b[o+1];
+const l32=(b,o)=>(b[o]|(b[o+1]<<8)|(b[o+2]<<16)|(b[o+3]<<24))>>>0;
+const ss=(b,o)=>((b[o]&127)<<21)|((b[o+1]&127)<<14)|((b[o+2]&127)<<7)|(b[o+3]&127);
+const asc=(b,o,n)=>{let s='';for(let i=0;i<n&&o+i<b.length;i++)s+=String.fromCharCode(b[o+i]);return s};
+const utf8=b=>new TextDecoder('utf-8').decode(b);
+const dec=(b,e)=>{if(e===1||e===2){let le=e===1,s=0;if(b[0]===255&&b[1]===254){le=true;s=2}else if(b[0]===254&&b[1]===255){le=false;s=2}return new TextDecoder(le?'utf-16le':'utf-16be').decode(b.subarray(s))}return new TextDecoder(e===3?'utf-8':'windows-1252').decode(b)};
+const zstr=(d,o,e)=>{const w=(e===1||e===2)?2:1;let x=o;while(x+w<=d.length&&!(d[x]===0&&(w===1||d[x+1]===0)))x+=w;return[dec(d.subarray(o,x),e).replace(/\0+$/,''),Math.min(x+w,d.length)]};
+const b64=b=>{let s='';for(let i=0;i<b.length;i+=8192)s+=String.fromCharCode.apply(null,b.subarray(i,i+8192));return btoa(s)};
+const imgURI=(d,m)=>{if(!/^image\/(png|jpe?g|gif|webp|bmp)$/i.test(m||''))m=d[0]===0x89?'image/png':'image/jpeg';return'data:'+m+';base64,'+b64(d)};
+const hex=a=>[...a].map(x=>x.toString(16).padStart(2,'0')).join('');
+
+/* ---------- metadata parsers ---------- */
+const IDN={TIT2:'Title',TPE1:'Artist',TALB:'Album',TPE2:'Album artist',TRCK:'Track',TPOS:'Disc',TDRC:'Recording date',TYER:'Year',TCON:'Genre',TCOM:'Composer',TPUB:'Publisher',TBPM:'BPM',TKEY:'Key',TSRC:'ISRC',TENC:'Encoded by',TSSE:'Encoder settings',TLEN:'Length (ms)',TCOP:'Copyright',COMM:'Comment',USLT:'Lyrics',TIT1:'Grouping',TIT3:'Subtitle',TPE3:'Conductor',TOPE:'Original artist',TLAN:'Language',TMED:'Media type',TCMP:'Compilation',TDOR:'Original date',TDRL:'Release date'};
+const V22={TT2:'TIT2',TP1:'TPE1',TAL:'TALB',TP2:'TPE2',TRK:'TRCK',TPA:'TPOS',TYE:'TYER',TCO:'TCON',TCM:'TCOM',TPB:'TPUB',TBP:'TBPM',TEN:'TENC',TSS:'TSSE',COM:'COMM',ULT:'USLT',PIC:'APIC',TCR:'TCOP',TKE:'TKEY',TRC:'TSRC',TLE:'TLEN',TT1:'TIT1',TT3:'TIT3'};
+function id3v2(b,base=0){
+ if(asc(b,base,3)!=='ID3')return null;
+ const ver=b[base+3],fl=b[base+5],end=Math.min(b.length,base+10+ss(b,base+6)),tags=[],pics=[];
+ let o=base+10;if(fl&0x40&&ver>=3)o+=ver===4?ss(b,o):u32(b,o)+4;
+ const il=ver===2?3:4,hl=ver===2?6:10;
+ while(o+hl<=end&&b[o]!==0){
+  let id=asc(b,o,il);if(!/^[A-Z0-9]+$/.test(id))break;
+  const sz=ver===2?(b[o+3]<<16|b[o+4]<<8|b[o+5]):ver===4?ss(b,o+4):u32(b,o+4),f2=ver>2?b[o+9]:0;
+  let d=b.subarray(o+hl,Math.min(o+hl+sz,end));o+=hl+sz;
+  if(ver===4&&(f2&1))d=d.subarray(4);
+  if(ver===2&&V22[id])id=V22[id];
+  const lab=IDN[id]?IDN[id]+' ('+id+')':id;
+  try{
+   if(id==='APIC'){const e=d[0];let m,p;if(ver===2){m='image/'+asc(d,1,3).toLowerCase();p=4}else[m,p]=zstr(d,1,0);const[ds,q]=zstr(d,p+1,e);pics.push({uri:imgURI(d.subarray(q),m),desc:ds||'cover'})}
+   else if(id==='TXXX'||id==='WXXX'){const e=d[0],[k,p]=zstr(d,1,e);tags.push([(k||id)+' ('+id+')',dec(d.subarray(p),id==='WXXX'?0:e).replace(/\0+$/,'')])}
+   else if(id==='COMM'||id==='USLT'){const e=d[0],[k,p]=zstr(d,4,e);tags.push([lab+' ['+asc(d,1,3)+(k?', '+k:'')+']',dec(d.subarray(p),e)])}
+   else if(id[0]==='T')tags.push([lab,dec(d.subarray(1),d[0]).split('\0').filter(Boolean).join(' / ')]);
+   else if(id[0]==='W')tags.push([lab,dec(d,0)]);
+   else if(id==='POPM'){const[em,p]=zstr(d,0,0);tags.push([lab,em+', rating '+d[p]])}
+   else if(id==='PRIV'){const[ow]=zstr(d,0,0);tags.push(['PRIV ('+ow+')',d.length+' bytes of binary data'])}
+   else tags.push([lab,d.length+' bytes of binary data']);
+  }catch(e){}
+ }
+ return{tags,pics,end:Math.max(end,base+10)};
+}
+function id3v1(b){const o=b.length-128;if(o<0||asc(b,o,3)!=='TAG')return[];const t=(s,n)=>asc(b,o+s,n).replace(/\0[\s\S]*$/,'').trim();
+ const r=[['Title (ID3v1)',t(3,30)],['Artist (ID3v1)',t(33,30)],['Album (ID3v1)',t(63,30)],['Year (ID3v1)',t(93,4)],['Comment (ID3v1)',t(97,b[o+125]===0?28:30)]];
+ if(b[o+125]===0&&b[o+126])r.push(['Track (ID3v1)',b[o+126]]);r.push(['Genre number (ID3v1)',b[o+127]]);return r.filter(x=>x[1]!=='')}
+function flacPic(d){let o=4;const ml=u32(d,o),m=asc(d,o+4,ml);o+=4+ml;const dl=u32(d,o),ds=utf8(d.subarray(o+4,o+4+dl));o+=4+dl+16;const n=u32(d,o);return{uri:imgURI(d.subarray(o+4,o+4+n),m),desc:ds||'cover'}}
+function vorbis(b,o){const tags=[],pics=[],vl=l32(b,o);tags.push(['Vendor',utf8(b.subarray(o+4,o+4+vl))]);o+=4+vl;let n=l32(b,o);o+=4;
+ while(n--&&o+4<=b.length){const l=l32(b,o),s=utf8(b.subarray(o+4,o+4+l));o+=4+l;const i=s.indexOf('='),k=(i<0?s:s.slice(0,i)).toUpperCase(),v=i<0?'':s.slice(i+1);
+  if(k==='METADATA_BLOCK_PICTURE'){try{pics.push(flacPic(Uint8Array.from(atob(v),c=>c.charCodeAt(0))))}catch(e){}}else tags.push([k,v])}
+ return{tags,pics}}
+function flac(b,o){const info={codec:'FLAC',lossless:true},tags=[],pics=[];o+=4;
+ for(;;){const h=b[o],len=(b[o+1]<<16)|(b[o+2]<<8)|b[o+3],d=b.subarray(o+4,o+4+len),t=h&127;
+  if(t===0){info.sampleRate=(d[10]<<12)|(d[11]<<4)|(d[12]>>4);info.channels=((d[12]>>1)&7)+1;info.bits=(((d[12]&1)<<4)|(d[13]>>4))+1;const n=(d[13]&15)*4294967296+u32(d,14);info.duration=n/info.sampleRate;const m=hex(d.subarray(18,34));info.md5=/^0+$/.test(m)?'not stored in file':m}
+  else if(t===4){const r=vorbis(d,0);tags.push(...r.tags);pics.push(...r.pics)}
+  else if(t===6)pics.push(flacPic(d));
+  o+=4+len;if((h&128)||o>=b.length)break}
+ return{info,tags,pics}}
+function ogg(b){const s=asc(b,0,Math.min(b.length,70000));let i,j,info={codec:'Ogg',lossless:null},r={tags:[],pics:[]};
+ if((i=s.indexOf('OpusHead'))>=0)info={codec:'Opus',lossless:false,channels:b[i+9],sampleRate:l32(b,i+12)};
+ else if((i=s.indexOf('\x01vorbis'))>=0)info={codec:'Vorbis',lossless:false,channels:b[i+11],sampleRate:l32(b,i+12),bitrate:l32(b,i+20)};
+ else if(s.indexOf('\x7fFLAC')>=0)info={codec:'Ogg FLAC',lossless:true};
+ try{if((j=s.indexOf('OpusTags'))>=0)r=vorbis(b,j+8);else if((j=s.indexOf('\x03vorbis'))>=0)r=vorbis(b,j+7)}catch(e){}
+ return{info,tags:r.tags,pics:r.pics}}
+const INFO={INAM:'Title',IART:'Artist',IPRD:'Album',ICMT:'Comment',ICRD:'Date',IGNR:'Genre',ISFT:'Software',ITRK:'Track',ICOP:'Copyright',IENG:'Engineer',ISRC:'Source',ITCH:'Technician',IKEY:'Keywords'};
+function wav(b){const info={codec:'WAV',lossless:true},tags=[],pics=[];let o=12;
+ while(o+8<=b.length){const id=asc(b,o,4),sz=l32(b,o+4),d=b.subarray(o+8,Math.min(o+8+sz,b.length));
+  if(id==='fmt '){let t=d[0]|d[1]<<8;if(t===0xFFFE&&sz>=26)t=d[24]|d[25]<<8;info.channels=d[2]|d[3]<<8;info.sampleRate=l32(d,4);info.bits=d[14]|d[15]<<8;info.br=l32(d,8);info.codec=t===1?'WAV (PCM)':t===3?'WAV (float PCM)':'WAV (non-PCM codec 0x'+t.toString(16)+')';info.lossless=t===1||t===3}
+  else if(id==='data'&&info.br)info.duration=d.length/info.br;
+  else if(id==='LIST'&&asc(d,0,4)==='INFO'){let p=4;while(p+8<=d.length){const k=asc(d,p,4),l=l32(d,p+4);tags.push([INFO[k]?INFO[k]+' ('+k+')':k,utf8(d.subarray(p+8,p+8+l)).replace(/\0+$/,'')]);p+=8+l+(l&1)}}
+  else if(id.toLowerCase()==='id3 '){const r=id3v2(d);if(r){tags.push(...r.tags);pics.push(...r.pics)}}
+  else if(id==='bext'){tags.push(['BWF description',asc(d,0,256).replace(/\0+$/,'')],['BWF originator',asc(d,256,32).replace(/\0+$/,'')],['BWF origination',asc(d,320,10)+' '+asc(d,330,8)])}
+  o+=8+sz+(sz&1)}
+ return{info,tags,pics}}
+function aiff(b){const info={codec:'AIFF',lossless:true},tags=[],pics=[],c=asc(b,8,4)==='AIFC';let o=12;
+ while(o+8<=b.length){const id=asc(b,o,4),sz=u32(b,o+4),d=b.subarray(o+8,Math.min(o+8+sz,b.length));
+  if(id==='COMM'){info.channels=u16(d,0);info.bits=u16(d,6);const e=((d[8]&127)<<8)|d[9];info.sampleRate=Math.round(u32(d,10)*Math.pow(2,e-16414));info.duration=u32(d,2)/info.sampleRate;
+   if(c){const k=asc(d,18,4);info.codec='AIFF-C ('+k+')';info.lossless=/^(NONE|sowt|twos|fl32|fl64|in24|in32|raw )$/i.test(k)}}
+  else if(id==='NAME'||id==='AUTH'||id==='(c) '||id==='ANNO')tags.push([{NAME:'Title',AUTH:'Author','(c) ':'Copyright',ANNO:'Annotation'}[id],utf8(d).replace(/\0+$/,'')]);
+  else if(id.toLowerCase()==='id3 '){const r=id3v2(d);if(r){tags.push(...r.tags);pics.push(...r.pics)}}
+  o+=8+sz+(sz&1)}
+ return{info,tags,pics}}
+const MP4N={'©nam':'Title','©ART':'Artist','©alb':'Album',aART:'Album artist','©day':'Year','©gen':'Genre','©wrt':'Composer','©cmt':'Comment','©too':'Encoder',cprt:'Copyright',trkn:'Track',disk:'Disc',tmpo:'BPM',gnre:'Genre ID','©grp':'Grouping','©lyr':'Lyrics',cpil:'Compilation'};
+function mp4(b){const info={codec:'MP4 audio',lossless:null},tags=[],pics=[],dv=new DataView(b.buffer,b.byteOffset,b.byteLength);
+ const ilst=(s,e)=>{let o=s;while(o+8<=e){const sz=u32(b,o);if(sz<8)break;const n=asc(b,o+4,4);let p=o+8,nm='',val=null;
+   while(p+8<=o+sz){const cs=u32(b,p);if(cs<8)break;const ct=asc(b,p+4,4),body=b.subarray(p+8,p+cs);
+    if(ct==='name')nm=utf8(body.subarray(4));
+    else if(ct==='data'){const ty=body[3],pl=body.subarray(8);
+     if(n==='covr'){pics.push({uri:imgURI(pl,ty===14?'image/png':'image/jpeg'),desc:'cover'});break}
+     val=ty===1?utf8(pl):(n==='trkn'||n==='disk')?u16(pl,2)+' of '+u16(pl,4):pl.length<=4?String([...pl].reduce((a,x)=>a*256+x,0)):pl.length+' bytes of binary data'}
+    p+=cs}
+   if(val!==null)tags.push([n==='----'?nm:(MP4N[n]?MP4N[n]+' ('+n+')':n),val]);o+=sz}};
+ const BOX=['moov','trak','mdia','minf','stbl','udta'],AUD={alac:['ALAC',true],mp4a:['AAC',false],'ac-3':['AC-3',false],'ec-3':['E-AC-3',false],Opus:['Opus',false],fLaC:['FLAC',true]};
+ const walk=(s,e)=>{let o=s;while(o+8<=e){let sz=u32(b,o),hs=8;const t=asc(b,o+4,4);if(sz===1){sz=Number(dv.getBigUint64(o+8));hs=16}else if(sz===0)sz=e-o;if(sz<hs)break;const cs=o+hs,ce=Math.min(o+sz,e);
+   if(BOX.includes(t))walk(cs,ce);else if(t==='meta')walk(cs+4,ce);else if(t==='ilst')ilst(cs,ce);
+   else if(t==='mvhd'&&b[cs]===0)info.duration=u32(b,cs+16)/u32(b,cs+12);
+   else if(t==='stsd'&&!info.fmt){const f=asc(b,cs+12,4);if(AUD[f]){info.fmt=f;info.codec=AUD[f][0];info.lossless=AUD[f][1];info.channels=u16(b,cs+32);info.bits=u16(b,cs+34);info.sampleRate=u16(b,cs+40)}}
+   o+=sz}};
+ walk(0,b.length);return{info,tags,pics}}
+const BR1=[0,32,40,48,56,64,80,96,112,128,160,192,224,256,320],BR2=[0,8,16,24,32,40,48,56,64,80,96,112,128,144,160];
+function mp3(b,o){const info={codec:'MP3',lossless:false};const lim=Math.min(b.length-4,o+65536);
+ for(;o<lim;o++)if(b[o]===255&&(b[o+1]&224)===224&&((b[o+1]>>1)&3)!==0&&((b[o+1]>>3)&3)!==1&&(b[o+2]>>4)!==15&&((b[o+2]>>2)&3)!==3)break;
+ if(o>=lim)return{info:{codec:'Unknown',lossless:null},tags:[],pics:[]};
+ const v=(b[o+1]>>3)&3,layer=4-((b[o+1]>>1)&3),ver=v===3?1:v===2?2:2.5,si=(b[o+2]>>2)&3,bi=b[o+2]>>4;
+ info.codec='MPEG-'+ver+' Layer '+layer+(layer===3?' (MP3)':'');info.sampleRate=[[44100,48000,32000],[22050,24000,16000],[11025,12000,8000]][v===3?0:v===2?1:2][si];
+ info.channels=(b[o+3]>>6)===3?1:2;info.mode=['Stereo','Joint stereo','Dual channel','Mono'][b[o+3]>>6];
+ if(layer===3)info.bitrate=(ver===1?BR1:BR2)[bi]*1000;
+ const s=asc(b,o,Math.min(700,b.length-o)),x=s.search(/Xing|Info|VBRI/);if(x>=0)info.vbr=s.substr(x,4)==='Info'?'CBR (Info header)':'VBR (Xing/VBRI header)';
+ const L=s.match(/LAME[\x20-\x7e]{5}/)||s.match(/(Lavf|Lavc)[\x20-\x7e]{4,8}/);if(L)info.encoder=L[0];
+ return{info,tags:[],pics:[]}}
+function parse(b){
+ const t=id3v2(b),o=t?t.end:0,m=asc(b,o,4);let r;
+ if(m==='fLaC')r=flac(b,o);else if(asc(b,0,4)==='RIFF'&&asc(b,8,4)==='WAVE')r=wav(b);
+ else if(asc(b,0,4)==='FORM'&&/AIF[FC]/.test(asc(b,8,4)))r=aiff(b);else if(m==='OggS')r=ogg(b);
+ else if(asc(b,4,4)==='ftyp')r=mp4(b);else if(m==='wvpk')r={info:{codec:'WavPack',lossless:true},tags:[],pics:[]};
+ else if(m==='MAC ')r={info:{codec:'Monkey’s Audio',lossless:true},tags:[],pics:[]};
+ else if(b[o]===255&&(b[o+1]&246)===240)r={info:{codec:'AAC (ADTS)',lossless:false,sampleRate:[96000,88200,64000,48000,44100,32000,24000,22050,16000,12000,11025,8000][(b[o+2]>>2)&15]},tags:[],pics:[]};
+ else r=mp3(b,o);
+ if(t){r.tags=[...t.tags,...r.tags];r.pics=[...t.pics,...r.pics]}
+ r.tags.push(...id3v1(b));return r}
+
+/* ---------- spectral analysis ---------- */
+function fft(re,im){const n=re.length;
+ for(let i=1,j=0;i<n;i++){let bit=n>>1;for(;j&bit;bit>>=1)j^=bit;j^=bit;if(i<j){let t=re[i];re[i]=re[j];re[j]=t;t=im[i];im[i]=im[j];im[j]=t}}
+ for(let len=2;len<=n;len<<=1){const a=-2*Math.PI/len,wr=Math.cos(a),wi=Math.sin(a),h=len>>1;
+  for(let i=0;i<n;i+=len){let cr=1,ci=0;for(let k=0;k<h;k++){const x=i+k,y=x+h,tr=re[y]*cr-im[y]*ci,ti=re[y]*ci+im[y]*cr;re[y]=re[x]-tr;im[y]=im[x]-ti;re[x]+=tr;im[x]+=ti;const t=cr*wr-ci*wi;ci=cr*wi+ci*wr;cr=t}}}}
+async function analyze(buf,info){
+ const AC=window.AudioContext||window.webkitAudioContext;let ctx;
+ try{ctx=new AC(info.sampleRate?{sampleRate:info.sampleRate}:undefined)}catch(e){ctx=new AC()}
+ const ab=await ctx.decodeAudioData(buf.slice(0));if(ctx.close)ctx.close();
+ const sr=ab.sampleRate,N=4096,H=N/2,len=ab.length,ch=[];for(let c=0;c<ab.numberOfChannels;c++)ch.push(ab.getChannelData(c));
+ if(len<N*2)throw new Error('the file is too short to analyse');
+ const win=Float64Array.from({length:N},(_,i)=>.5-.5*Math.cos(2*Math.PI*i/(N-1))),re=new Float64Array(N),im=new Float64Array(N);
+ const F=Math.min(320,Math.floor(len/N)),avg=new Float64Array(H),cols=[],norm=(N/4)*(N/4);let used=0;
+ for(let f=0;f<F;f++){const st=Math.floor(f*(len-N)/(F-1||1));let e=0;
+  for(let i=0;i<N;i++){let s=0;for(let c=0;c<ch.length;c++)s+=ch[c][st+i];s/=ch.length;e+=s*s;re[i]=s*win[i];im[i]=0}
+  fft(re,im);const p=new Float32Array(H);for(let k=0;k<H;k++)p[k]=(re[k]*re[k]+im[k]*im[k])/norm;
+  const loud=Math.sqrt(e/N)>0.003;cols.push({p,loud});if(loud){for(let k=0;k<H;k++)avg[k]+=p[k];used++}}
+ if(!used){cols.forEach(c=>{for(let k=0;k<H;k++)avg[k]+=c.p[k]});used=cols.length}
+ const S=Float32Array.from(avg,v=>10*Math.log10(v/used+1e-20)),bh=sr/N,w=Math.max(3,Math.round(250/bh));
+ const m=(a,z)=>{let s=0;for(let i=a;i<z;i++)s+=S[i];return s/(z-a)};
+ let best=0,bk=-1;for(let k=Math.round(8000/bh)+w;k<H-w-1;k++){const d=m(k-w,k)-m(k+1,k+1+w);if(d>best){best=d;bk=k}}
+ let ext=0;for(let k=H-1;k>3;k--)if(m(k-3,k+1)>-100){ext=k*bh;break}
+ let t=0,on=0;const c0=ch[0],step=Math.max(1,Math.floor(len/200000));
+ for(let i=0;i<len;i+=step){const x=c0[i]*32768;if(x!==0){t++;if(Math.abs(x-Math.round(x))<.002)on++}}
+ return{sr,dur:len/sr,S,cols,used,drop:best,cut:best>=18?bk*bh:0,ext,eff16:t>1000&&on/t>.999}}
+
+/* ---------- drawing ---------- */
+function drawSpec(A){const cv=$('#spec'),W=cv.width=1000,Hh=cv.height=300,g=cv.getContext('2d'),L=42,B=24,pw=W-L-8,ph=Hh-B-8,nyq=A.sr/2;
+ const X=f=>L+f/nyq*pw,Y=d=>8+(1-(Math.max(-140,Math.min(-20,d))+140)/120)*ph;
+ g.fillStyle='#0b0b10';g.fillRect(0,0,W,Hh);g.font='11px system-ui,sans-serif';g.fillStyle='#8a90b8';g.strokeStyle='#23263d';
+ for(let d=-20;d>=-140;d-=20){g.beginPath();g.moveTo(L,Y(d));g.lineTo(W-8,Y(d));g.stroke();g.fillText(d,6,Y(d)+4)}
+ const stp=nyq>30000?4000:2000;for(let f=0;f<=nyq;f+=stp){g.beginPath();g.moveTo(X(f),8);g.lineTo(X(f),Hh-B);g.stroke();g.fillText(f/1000+'k',X(f)-8,Hh-8)}
+ g.strokeStyle='#8c9cff';g.lineWidth=1.4;g.beginPath();
+ for(let x=0;x<pw;x++){const k0=Math.floor(x/pw*A.S.length),k1=Math.max(k0+1,Math.floor((x+1)/pw*A.S.length));let mx=-300;for(let k=k0;k<k1;k++)mx=Math.max(mx,A.S[k]);x?g.lineTo(L+x,Y(mx)):g.moveTo(L,Y(mx))}
+ g.stroke();
+ if(A.cut){g.strokeStyle=g.fillStyle='#ff6b80';g.setLineDash([5,4]);g.beginPath();g.moveTo(X(A.cut),8);g.lineTo(X(A.cut),Hh-B);g.stroke();g.setLineDash([]);g.fillText('cut-off '+(A.cut/1000).toFixed(1)+' kHz',Math.min(X(A.cut)+6,W-110),22)}}
+const ST=[[0,0,4],[40,11,84],[188,55,84],[249,142,9],[252,255,164]];
+const cm=t=>{t=Math.max(0,Math.min(.9999,t))*4;const i=t|0,f=t-i,a=ST[i],b=ST[i+1];return a.map((v,j)=>v+(b[j]-v)*f)};
+function drawGram(A){const cv=$('#gram'),w=A.cols.length,h=512;cv.width=w;cv.height=h;const g=cv.getContext('2d'),im=g.createImageData(w,h),per=A.cols[0].p.length/h;
+ A.cols.forEach((c,x)=>{for(let y=0;y<h;y++){const k0=Math.floor(y*per),k1=Math.max(k0+1,Math.floor((y+1)*per));let mx=0;for(let k=k0;k<k1;k++)if(c.p[k]>mx)mx=c.p[k];
+  const col=cm((10*Math.log10(mx+1e-20)+130)/100);im.data.set([col[0],col[1],col[2],255],((h-1-y)*w+x)*4)}});
+ g.putImageData(im,0,0)}
+
+/* ---------- verdict + render ---------- */
+const guess=k=>k<16.6?'That matches roughly a 128 kbps MP3 or lower.':k<17.9?'That matches roughly a 160 kbps MP3.':'That matches roughly a 192 kbps MP3 (V2) or AAC.';
+function verdict(i,A,err){const F=[],lossy=i.lossless===false;
+ if(lossy)F.push(['bad','The file itself is a lossy format ('+i.codec+'), so it can’t be lossless, whatever the extension says.']);
+ if(i.lossless===true&&/non-PCM/.test(i.codec))F.push(['bad','Compressed codec inside a WAV container.']);
+ if(A){const k=A.cut/1000;
+  if(A.cut){
+   if(k<19)F.push(['bad','Hard low-pass at about '+k.toFixed(1)+' kHz (a '+A.drop.toFixed(0)+' dB cliff). '+guess(k)+' Genuine CD-quality audio normally reaches 20 kHz or more.']);
+   else if(k<20.6)F.push(['warn','Steep cut-off at about '+k.toFixed(1)+' kHz. High-bitrate MP3 and AAC (V0, 256 to 320 kbps) do this, but so do some masters and resamplers, so it is suggestive rather than conclusive.']);
+   else if(A.sr>48000&&k<23)F.push(['warn','Content stops at about '+k.toFixed(1)+' kHz in a '+(A.sr/1000)+' kHz file. It looks upsampled from a 44.1 or 48 kHz source, so the extra bandwidth is empty.']);
+   else F.push(['ok','The spectrum runs up to about '+k.toFixed(1)+' kHz before rolling off, consistent with genuine full-band audio.'])}
+  else F.push(['ok','No brick-wall low-pass found. Content reaches about '+(A.ext/1000).toFixed(1)+' kHz and falls away gradually, as in genuine lossless.']);
+  if(i.bits>16&&A.eff16)F.push(['warn','Labelled '+i.bits+'-bit, but every sample sits on the 16-bit grid: this is 16-bit audio padded into a larger container.'])}
+ else F.push(['warn','Couldn’t decode the audio for spectral analysis ('+err+'). The metadata below was still read. Try a FLAC or WAV copy, or another browser.']);
+ const lv=F.some(x=>x[0]==='bad')?'bad':F.some(x=>x[0]==='warn')?'warn':'ok';
+ const T={bad:lossy?'Not lossless: this is '+i.codec:'Likely a lossy transcode',warn:A?'Suspicious, possibly transcoded':'Couldn’t analyse the audio',ok:'Looks like genuine lossless'};
+ return{lv,title:T[lv],F}}
+const tbl=r=>'<div class="scroll"><table>'+r.map(([k,v])=>{v=String(v);if(v.length>2500)v=v.slice(0,2500)+'… (+'+(v.length-2500)+' more characters)';return'<tr><td>'+esc(k)+'</td><td>'+(v===''?'(empty)':esc(v))+'</td></tr>'}).join('')+'</table></div>';
+const clock=s=>s?Math.floor(s/60)+':'+String(Math.floor(s%60)).padStart(2,'0'):null;
+function render(file,res,A,err){
+ const i=res.info,V=verdict(i,A,err),sr=i.sampleRate||(A&&A.sr),dur=i.duration||(A&&A.dur);
+ const abr=dur?Math.round(file.size*8/dur/1000)+' kbps (whole file)':null;
+ const rows=[['File name',file.name],['File size',(file.size/1048576).toFixed(2)+' MB'],['Browser MIME type',file.type||null],['Format',i.codec||'Unknown'],['Codec type',i.lossless===true?'Lossless':i.lossless===false?'Lossy':'Unknown'],
+  ['Sample rate',sr?sr+' Hz':null],['Bit depth',i.bits?i.bits+'-bit':null],['Channels',i.channels||null],['Channel mode',i.mode||null],['Duration',clock(dur)],['Average bitrate',abr],
+  ['Encoded bitrate',i.bitrate?Math.round(i.bitrate/1000)+' kbps':null],['Bitrate mode',i.vbr||null],['Encoder',i.encoder||null],['Audio MD5 (FLAC)',i.md5||null],
+  ['Highest content above −100 dBFS',A?(A.ext/1000).toFixed(1)+' kHz':null]].filter(r=>r[1]!=null);
+ const pics=res.pics.map(p=>'<img class="art" alt="'+esc(p.desc)+'" title="'+esc(p.desc)+'" src="'+p.uri+'">').join('');
+ out.innerHTML='<div class="card verdict '+V.lv+'"><h3>'+V.title+'</h3><p class="fname">'+esc(file.name)+'</p><ul class="find">'+V.F.map(x=>'<li class="'+x[0]+'">'+x[1]+'</li>').join('')+'</ul></div>'
+ +(A?'<div class="card"><h2>Average spectrum</h2><canvas id="spec"></canvas><p class="legend">Level in dBFS at each frequency, averaged over '+A.used+' slices of the track. A cliff with nothing but noise above it is the low-pass an encoder leaves behind.</p></div>'
+ +'<div class="card"><h2>Spectrogram</h2><canvas id="gram" style="height:280px"></canvas><p class="legend">Time runs left to right, frequency bottom to top (0 to '+(A.sr/2000).toFixed(1)+' kHz). A flat dark ceiling across the whole track is the giveaway.</p></div>':'')
+ +'<div class="card"><h2>Audio stream</h2>'+tbl(rows)+'</div>'
+ +'<div class="card"><h2>Metadata tags ('+res.tags.length+')</h2>'+pics+(res.tags.length?tbl(res.tags):'<p>No metadata tags found in this file.</p>')+'</div>';
+ if(A){drawSpec(A);drawGram(A)}}
+async function run(file){
+ out.innerHTML='<div class="card">Reading and decoding '+esc(file.name)+'…</div>';
+ let buf;try{buf=await file.arrayBuffer()}catch(e){out.innerHTML='<div class="card verdict bad"><h3>Couldn’t read that file</h3></div>';return}
+ let res;try{res=parse(new Uint8Array(buf))}catch(e){res={info:{codec:'Unknown',lossless:null},tags:[],pics:[]}}
+ await new Promise(r=>setTimeout(r,30));
+ let A=null,err='';
+ if(file.size>6e8)err='file is over 600 MB';else try{A=await analyze(buf,res.info)}catch(e){err=(e&&e.message)||'unsupported or corrupt audio'}
+ render(file,res,A,err)}
+['dragenter','dragover'].forEach(e=>addEventListener(e,ev=>{ev.preventDefault();$('#drop').classList.add('on')}));
+['dragleave','drop'].forEach(e=>addEventListener(e,ev=>{ev.preventDefault();$('#drop').classList.remove('on')}));
+addEventListener('drop',ev=>{const f=ev.dataTransfer&&ev.dataTransfer.files[0];if(f)run(f)});
+$('#file').addEventListener('change',e=>{const f=e.target.files[0];if(f)run(f)});
+</script>
+</body>
+</html>
