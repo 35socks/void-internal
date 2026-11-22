@@ -1,0 +1,16 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Scratchpad</title><link rel="stylesheet" href="../assets/suite.css"></head>
+<body data-app="scratch"><div id="app">
+<div class="panel corners"><textarea id="t" class="mono" style="min-height:55vh;border:none;padding:0;font-size:13px" placeholder="Type anything. It saves as you go."></textarea></div>
+<div class="row"><span class="small muted" id="info"></span><span style="flex:1"></span><button class="btn ghost sm" id="cp">Copy</button><button class="btn ghost sm" id="dl">Download .txt</button><button class="btn ghost sm danger" id="clr">Clear</button></div></div>
+<script src="../assets/suite.js"></script>
+<script>
+SU.ready(()=>{
+  const t=SU.$('#t'), info=SU.$('#info'); t.value=SU.store.get('scratch','');
+  const upd=()=>{ const w=t.value.trim()?t.value.trim().split(/\s+/).length:0; info.textContent=w+' words · '+t.value.length+' chars'; };
+  t.addEventListener('input',()=>{ SU.store.set('scratch',t.value); upd(); }); upd();
+  SU.$('#cp').onclick=()=>SU.copy(t.value);
+  SU.$('#dl').onclick=()=>SU.download('scratch.txt',t.value);
+  SU.$('#clr').onclick=async()=>{ if(await SU.confirm('Clear the scratchpad?')){ t.value=''; SU.store.set('scratch',''); upd(); } };
+});
+</script></body></html>

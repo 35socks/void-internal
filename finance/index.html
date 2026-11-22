@@ -1,0 +1,27 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Money</title><link rel="stylesheet" href="../assets/suite.css"></head>
+<body data-app="finance"><div id="app"><div id="sum" class="stats" style="margin-bottom:16px"></div><div id="root"></div><div class="section-label" style="margin-top:28px">This month by category</div><div id="bycat" class="panel"></div></div>
+<script src="../assets/suite.js"></script>
+<script>
+SU.ready(()=>{
+  const gbp=n=>(n<0?'-':'')+'£'+Math.abs(n).toLocaleString(undefined,{minimumFractionDigits:2,maximumFractionDigits:2});
+  SU.crud(SU.$('#root'),{key:'finance',noun:'entry',csv:'money',filter:'type',sort:'date',
+    fields:[
+      {k:'date',l:'Date',t:'date',def:SU.today},
+      {k:'desc',l:'Description',req:true},
+      {k:'category',l:'Category',t:'select',opts:['Gear','Software','Studio / rehearsal','Travel','Food','Bills','Gig income','Sales','Freelance','Other'],def:'Other'},
+      {k:'type',l:'Type',t:'select',opts:['Expense','Income'],def:'Expense'},
+      {k:'amount',l:'Amount',t:'num',req:true,fmt:(v,it)=>SU.h('span',{class:it.type==='Income'?'ok':''},gbp(+v||0))}
+    ],
+    onDraw:items=>{
+      const m=SU.today().slice(0,7), sg=i=>i.type==='Income'?1:-1;
+      const inc=items.filter(i=>i.type==='Income').reduce((a,i)=>a+(+i.amount||0),0), exp=items.filter(i=>i.type!=='Income').reduce((a,i)=>a+(+i.amount||0),0);
+      const mi=items.filter(i=>i.date&&i.date.startsWith(m)&&i.type==='Income').reduce((a,i)=>a+(+i.amount||0),0), me=items.filter(i=>i.date&&i.date.startsWith(m)&&i.type!=='Income').reduce((a,i)=>a+(+i.amount||0),0);
+      SU.$('#sum').innerHTML=[['Net (all time)',gbp(inc-exp)],['Income',gbp(inc)],['Spent',gbp(exp)],['Net this month',gbp(mi-me)]].map(([l,n])=>'<div class="stat"><div class="n" style="font-size:18px">'+n+'</div><div class="l">'+l+'</div></div>').join('');
+      const cat={}; items.filter(i=>i.date&&i.date.startsWith(m)&&i.type!=='Income').forEach(i=>cat[i.category]=(cat[i.category]||0)+(+i.amount||0));
+      const rows=Object.entries(cat).sort((a,b)=>b[1]-a[1]), max=rows.length?rows[0][1]:1;
+      SU.$('#bycat').innerHTML=rows.length?rows.map(([c,v])=>'<div style="margin-bottom:12px"><div class="row" style="justify-content:space-between"><span>'+SU.esc(c)+'</span><span class="mono">'+gbp(v)+'</span></div><div class="bar"><i style="width:'+(v/max*100)+'%"></i></div></div>').join(''):'<div class="empty">No spending logged this month</div>';
+    }
+  });
+});
+</script></body></html>

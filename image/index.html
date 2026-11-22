@@ -1,0 +1,56 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Image Lab</title><link rel="stylesheet" href="../assets/suite.css">
+<style>.pv{background-color:#111;background-image:linear-gradient(45deg,#1a1a1a 25%,transparent 25%),linear-gradient(-45deg,#1a1a1a 25%,transparent 25%),linear-gradient(45deg,transparent 75%,#1a1a1a 75%),linear-gradient(-45deg,transparent 75%,#1a1a1a 75%);background-size:16px 16px;background-position:0 0,0 8px,8px -8px,-8px 0;border:1px solid var(--line);min-height:260px;display:flex;align-items:center;justify-content:center;padding:10px}.pv canvas{max-width:100%;max-height:70vh;height:auto}</style></head>
+<body data-app="image"><div id="app"><div class="cols side">
+<div class="panel"><label class="drop" id="dz">Drop images or click<input type="file" id="file" accept="image/*" multiple hidden></label><div class="small muted" id="fl" style="margin:8px 0 14px"></div>
+<h2>Resize</h2><div class="row"><label class="f grow"><span>Mode</span><select id="rm"><option value="none">Original size</option><option value="long">Long edge (px)</option><option value="w">Width (px)</option><option value="h">Height (px)</option><option value="pct">Percent</option></select></label><label class="f grow"><span>Value</span><input type="number" id="rv" value="2048"></label></div>
+<h2>Crop &amp; rotate</h2><div class="row"><label class="f grow"><span>Aspect</span><select id="ca"><option value="0">Free (no crop)</option><option value="1">1:1</option><option value="0.8">4:5</option><option value="1.5">3:2</option><option value="1.7778">16:9</option><option value="0.5625">9:16</option><option value="0.6667">2:3</option><option value="2.39">2.39:1</option></select></label><label class="f grow"><span>Rotate</span><select id="ro"><option value="0">0°</option><option value="90">90°</option><option value="180">180°</option><option value="270">270°</option></select></label></div>
+<label class="f"><span>Crop position <b id="cpv" style="color:var(--paper)">50</b></span><input type="range" id="cp" min="0" max="100" value="50"></label><label class="check" style="margin-bottom:14px"><input type="checkbox" id="fh"> Flip horizontally</label>
+<h2>Adjust</h2><label class="f"><span>Brightness</span><input type="range" id="br" min="30" max="180" value="100"></label><label class="f"><span>Contrast</span><input type="range" id="co" min="30" max="180" value="100"></label><label class="f"><span>Saturation</span><input type="range" id="sa" min="0" max="200" value="100"></label><label class="f"><span>Blur (px)</span><input type="range" id="bl" min="0" max="10" step=".5" value="0"></label><label class="check" style="margin-bottom:14px"><input type="checkbox" id="gr"> Grayscale</label>
+<h2>Export</h2><div class="row"><label class="f grow"><span>Format</span><select id="fmt"><option value="image/jpeg">JPEG</option><option value="image/webp">WebP</option><option value="image/png">PNG</option></select></label><label class="f grow"><span>Quality</span><input type="number" id="q" value="90" min="10" max="100"></label></div>
+<div class="row"><button class="btn primary" id="dl">Download this</button><button class="btn" id="all">Download all</button></div><div class="small muted" style="margin-top:10px">Re-encoding strips all EXIF/GPS metadata. Batch applies the same settings to every file.</div></div>
+<div><div class="pv" id="pv"><span class="muted small">Preview</span></div><div class="small muted" id="dim" style="margin:8px 0 16px"></div><div class="panel"><h2>EXIF (original file)</h2><div id="exif"><div class="muted small">No image loaded</div></div></div></div>
+</div></div>
+<script src="../assets/suite.js"></script>
+<script>
+SU.ready(()=>{
+  const $=SU.$; let files=[], cur=0, timer;
+  /* ---- EXIF reader (JPEG) ---- */
+  function exif(buf){
+    const v=new DataView(buf); if(v.getUint16(0)!==0xFFD8) return null; let o=2;
+    while(o<v.byteLength-4){ const m=v.getUint16(o), len=v.getUint16(o+2); if(m===0xFFE1&&v.getUint32(o+4)===0x45786966){ return tiff(v,o+10); } if((m&0xFF00)!==0xFF00) break; o+=2+len; } return null; }
+  function tiff(v,b){
+    const le=v.getUint16(b)===0x4949, u16=o=>v.getUint16(o,le), u32=o=>v.getUint32(o,le), res={}, gps={};
+    const str=(o,n)=>{ let s=''; for(let i=0;i<n;i++){ const c=v.getUint8(o+i); if(!c) break; s+=String.fromCharCode(c); } return s.trim(); };
+    const val=(e)=>{ const t=u16(e+2), n=u32(e+4), sz=[0,1,1,2,4,8,1,1,2,4,8][t]||1, vo=n*sz>4?b+u32(e+8):e+8;
+      if(t===2) return str(vo,n); const out=[]; for(let i=0;i<Math.min(n,4);i++){ if(t===3) out.push(u16(vo+i*2)); else if(t===4) out.push(u32(vo+i*4)); else if(t===5||t===10) out.push(u32(vo+i*8)/(u32(vo+i*8+4)||1)); else out.push(v.getUint8(vo+i)); } return out.length===1?out[0]:out; };
+    const ifd=(o,tags,into)=>{ const n=u16(o); for(let i=0;i<n;i++){ const e=o+2+i*12, tag=u16(e); if(tags[tag]) into[tags[tag]]=val(e); if(tag===0x8769) into._exif=b+u32(e+8); if(tag===0x8825) into._gps=b+u32(e+8); } };
+    const T0={0x010F:'Make',0x0110:'Model',0x0112:'Orientation',0x0131:'Software',0x0132:'Date'}, T1={0x829A:'Exposure',0x829D:'FNumber',0x8827:'ISO',0x9003:'Taken',0x920A:'FocalLength',0xA434:'Lens',0xA405:'FocalLength35'}, TG={1:'LatRef',2:'Lat',3:'LonRef',4:'Lon'};
+    ifd(b+u32(b+4),T0,res); if(res._exif) ifd(res._exif,T1,res); if(res._gps) ifd(res._gps,TG,gps);
+    const r={}; if(res.Make||res.Model) r.Camera=((res.Make||'')+' '+(res.Model||'')).trim(); if(res.Lens) r.Lens=res.Lens; if(res.Taken||res.Date) r['Date taken']=res.Taken||res.Date;
+    if(res.Exposure) r.Shutter=res.Exposure<1?'1/'+Math.round(1/res.Exposure)+' s':res.Exposure+' s'; if(res.FNumber) r.Aperture='f/'+(+res.FNumber).toFixed(1); if(res.ISO) r.ISO=res.ISO; if(res.FocalLength) r['Focal length']=(+res.FocalLength).toFixed(0)+' mm'+(res.FocalLength35?' ('+res.FocalLength35+' mm eq.)':''); if(res.Software) r.Software=res.Software;
+    if(gps.Lat&&gps.Lon&&Array.isArray(gps.Lat)){ const d=a=>a[0]+a[1]/60+a[2]/3600; r['⚠ GPS location']=((gps.LatRef==='S'?-1:1)*d(gps.Lat)).toFixed(5)+', '+((gps.LonRef==='W'?-1:1)*d(gps.Lon)).toFixed(5); }
+    return Object.keys(r).length?r:{}; }
+  async function showExif(f){ $('#exif').innerHTML=''; if(!/jpe?g/i.test(f.type)&&!/\.jpe?g$/i.test(f.name)){ $('#exif').innerHTML='<div class="muted small">EXIF reading supports JPEG only.</div>'; return; }
+    let r=null; try{ r=exif(await f.arrayBuffer()); }catch{} $('#exif').innerHTML=r&&Object.keys(r).length?'<dl class="kv">'+Object.entries(r).map(([k,v])=>'<dt>'+SU.esc(k)+'</dt><dd'+(k[0]==='⚠'?' class="warn"':'')+'>'+SU.esc(v)+'</dd>').join('')+'</dl>':'<div class="muted small">No EXIF data found (already stripped?).</div>'; }
+  /* ---- processing ---- */
+  async function render(f){
+    const bm=await createImageBitmap(f), W=bm.width, H=bm.height, ar=+$('#ca').value, pos=+$('#cp').value/100;
+    let sx=0,sy=0,sw=W,sh=H; if(ar){ if(W/H>ar){ sw=H*ar; sx=(W-sw)*pos; } else { sh=W/ar; sy=(H-sh)*pos; } }
+    const rot=+$('#ro').value, sw2=rot%180?sh:sw, sh2=rot%180?sw:sh; let s=1; const mode=$('#rm').value, v=+$('#rv').value||1;
+    if(mode==='long') s=v/Math.max(sw2,sh2); else if(mode==='w') s=v/sw2; else if(mode==='h') s=v/sh2; else if(mode==='pct') s=v/100;
+    const cw=Math.max(1,Math.round(sw2*s)), ch=Math.max(1,Math.round(sh2*s)), c=document.createElement('canvas'); c.width=cw; c.height=ch; const x=c.getContext('2d');
+    if($('#fmt').value==='image/jpeg'){ x.fillStyle='#fff'; x.fillRect(0,0,cw,ch); }
+    x.filter='brightness('+$('#br').value+'%) contrast('+$('#co').value+'%) saturate('+$('#sa').value+'%) blur('+$('#bl').value+'px)'+($('#gr').checked?' grayscale(1)':'');
+    x.translate(cw/2,ch/2); x.rotate(rot*Math.PI/180); if($('#fh').checked) x.scale(-1,1); x.drawImage(bm,sx,sy,sw,sh,-sw*s/2,-sh*s/2,sw*s,sh*s); bm.close&&bm.close(); return c; }
+  async function preview(){ if(!files.length) return; const f=files[cur]; try{ const c=await render(f); $('#pv').innerHTML=''; $('#pv').append(c); $('#dim').textContent=f.name+' · '+SU.bytes(f.size)+' → '+c.width+' × '+c.height+' px'; $('#cpv').textContent=$('#cp').value; }catch{ $('#pv').innerHTML='<span class="bad small">Could not decode this image</span>'; } }
+  const sched=()=>{ clearTimeout(timer); timer=setTimeout(preview,120); };
+  const ext=()=>({'image/jpeg':'jpg','image/webp':'webp','image/png':'png'})[$('#fmt').value];
+  const out=async f=>{ const c=await render(f); const b=await new Promise(r=>c.toBlob(r,$('#fmt').value,(+$('#q').value||90)/100)); SU.download(f.name.replace(/\.[^.]+$/,'')+'-edit.'+ext(),b); };
+  function load(fl){ files=[...fl].filter(f=>/^image\//.test(f.type)); if(!files.length) return; cur=0; $('#fl').innerHTML=files.map((f,i)=>'<a data-i="'+i+'" style="text-decoration:underline;cursor:pointer;margin-right:10px">'+SU.esc(f.name)+'</a>').join(''); showExif(files[0]); preview(); }
+  $('#fl').addEventListener('click',e=>{ const a=e.target.closest('a'); if(a){ cur=+a.dataset.i; showExif(files[cur]); preview(); } });
+  $('#file').onchange=e=>load(e.target.files); const dz=$('#dz'); ['dragenter','dragover'].forEach(e=>dz.addEventListener(e,ev=>{ ev.preventDefault(); dz.classList.add('on'); })); ['dragleave','drop'].forEach(e=>dz.addEventListener(e,ev=>{ ev.preventDefault(); dz.classList.remove('on'); })); dz.addEventListener('drop',ev=>load(ev.dataTransfer.files));
+  SU.$$('#app input,#app select').forEach(i=>{ if(i.id!=='file') i.addEventListener('input',sched); });
+  $('#dl').onclick=()=>files.length&&out(files[cur]); $('#all').onclick=async()=>{ for(const f of files){ await out(f); await new Promise(r=>setTimeout(r,250)); } };
+});
+</script></body></html>

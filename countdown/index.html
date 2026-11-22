@@ -1,0 +1,27 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Countdowns</title><link rel="stylesheet" href="../assets/suite.css"></head>
+<body data-app="countdown"><div id="app"><div id="live" class="grid" style="margin-bottom:20px"></div><div id="root"></div></div>
+<script src="../assets/suite.js"></script>
+<script>
+SU.ready(()=>{
+  const c=SU.crud(SU.$('#root'),{key:'countdowns',noun:'event',csv:'countdowns',sort:'when',
+    fields:[
+      {k:'name',l:'Event',req:true},
+      {k:'when',l:'Date & time',t:'datetime-local',req:true,fmt:v=>v?v.replace('T',' '):''},
+      {k:'kind',l:'Kind',t:'select',opts:['Release','Show','Shoot','Deadline','Exam','Trip','Other'],def:'Deadline'}
+    ]});
+  const live=SU.$('#live');
+  function tick(){
+    const items=SU.store.get('countdowns',[]).filter(i=>i.when).sort((a,b)=>a.when.localeCompare(b.when));
+    live.innerHTML='';
+    if(!items.length){ live.style.display='none'; return; } live.style.display='';
+    items.slice(0,6).forEach(i=>{
+      let d=new Date(i.when)-Date.now(), past=d<0; d=Math.abs(d);
+      const D=Math.floor(d/864e5),H=Math.floor(d%864e5/36e5),M=Math.floor(d%36e5/6e4),S=Math.floor(d%6e4/1e3);
+      live.append(SU.h('div',{class:'card',style:'cursor:default'},SU.h('span',{class:'tag',style:'align-self:flex-start'},i.kind||'Event'),
+        SU.h('div',null,SU.h('div',{class:'title'},i.name),SU.h('div',{class:'big',style:'font-size:24px;margin-top:8px;'+(past?'color:var(--dim)':'')},D+'D '+SU.pad(H)+':'+SU.pad(M)+':'+SU.pad(S)),SU.h('div',{class:'desc'},past?'passed':'remaining'))));
+    });
+  }
+  tick(); setInterval(tick,1000); SU.$('#root').addEventListener('click',()=>setTimeout(tick,50));
+});
+</script></body></html>

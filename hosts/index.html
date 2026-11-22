@@ -1,0 +1,27 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Host Registry</title><link rel="stylesheet" href="../assets/suite.css"></head>
+<body data-app="hosts"><div id="app"><div id="root"></div><div id="conf" class="small" style="margin-top:12px"></div></div>
+<script src="../assets/suite.js"></script>
+<script>
+SU.ready(()=>{
+  SU.crud(SU.$('#root'),{key:'hosts',noun:'host',csv:'hosts',filter:'status',sort:'ip',
+    fields:[
+      {k:'name',l:'Hostname',req:true},
+      {k:'ip',l:'IP',ph:'192.168.1.10'},
+      {k:'role',l:'Role',ph:'NAS, hypervisor, DNS…'},
+      {k:'os',l:'OS'},
+      {k:'ports',l:'Ports',ph:'80, 443, 8096'},
+      {k:'loc',l:'Location'},
+      {k:'status',l:'Status',t:'select',opts:['Up','Down','Planned','Retired'],def:'Up'},
+      {k:'notes',l:'Notes',t:'area',list:false}
+    ],
+    onDraw:items=>{
+      const out=[], byIp={}, seen={};
+      items.filter(i=>i.ip&&i.status!=='Retired').forEach(i=>(byIp[i.ip]=byIp[i.ip]||[]).push(i.name));
+      Object.entries(byIp).filter(([,v])=>v.length>1).forEach(([ip,v])=>out.push('Duplicate IP '+ip+': '+v.join(', ')));
+      items.filter(i=>i.ip&&i.ports&&i.status!=='Retired').forEach(i=>i.ports.split(/[ ,]+/).filter(Boolean).forEach(p=>{ const k=i.ip+':'+p; if(seen[k]&&seen[k]!==i.name) out.push('Port clash '+k+': '+seen[k]+' / '+i.name); seen[k]=i.name; }));
+      SU.$('#conf').innerHTML = out.length ? '<span class="bad">⚠ '+out.map(SU.esc).join('<br>⚠ ')+'</span>' : '<span class="muted">No IP or port conflicts detected.</span>';
+    }
+  });
+});
+</script></body></html>

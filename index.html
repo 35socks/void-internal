@@ -1,426 +1,60 @@
 <!DOCTYPE html>
-<html lang="en">
-<head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>internal.voidrecs.com — Login</title>
-<style>
-@font-face {
-    font-family: "Ndot 55";
-    src: url("https://db.onlinewebfonts.com/t/5f21b8d13dad527377311ec2d5388bdf.eot");
-    src: url("https://db.onlinewebfonts.com/t/5f21b8d13dad527377311ec2d5388bdf.eot?#iefix") format("embedded-opentype"),
-    url("https://db.onlinewebfonts.com/t/5f21b8d13dad527377311ec2d5388bdf.woff2") format("woff2"),
-    url("https://db.onlinewebfonts.com/t/5f21b8d13dad527377311ec2d5388bdf.woff") format("woff"),
-    url("https://db.onlinewebfonts.com/t/5f21b8d13dad527377311ec2d5388bdf.ttf") format("truetype"),
-    url("https://db.onlinewebfonts.com/t/5f21b8d13dad527377311ec2d5388bdf.svg#Ndot 55") format("svg");
-    font-display: swap;
-}
-@import url('https://fonts.googleapis.com/css2?family=Open+Sans:wght@400;500;600;700&display=swap');
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Suite</title><link rel="stylesheet" href="assets/suite.css"></head>
+<body data-app="home"><div id="app">
+<div class="eyebrow"><span class="dot-pulse"></span><span id="eyebrow">Private workspace</span></div>
+<div class="page-head" style="margin-top:10px"><h1 id="greet">Welcome back.</h1><p id="stamp" class="mono" style="letter-spacing:.14em;text-transform:uppercase;font-size:10.5px"></p></div>
+<div class="stats" id="stats" style="margin-bottom:26px"></div>
 
-:root{
-    --void:#000000;
-    --paper:#ffffff;
-    --dim:#6a6a6a;
-    --dim-2:#333333;
-    --panel:#0a0a0a;
-    --line:#262626;
-    --err:#ffffff;
-    --ease: cubic-bezier(.16,.84,.44,1);
-}
-*{ margin:0; padding:0; box-sizing:border-box; }
-html,body{ background:var(--void); color:var(--paper); font-family:'Open Sans',sans-serif; width:100%; height:100%; }
-a{ color:inherit; }
-
-#dotfield{ position:fixed; inset:0; z-index:0; display:block; }
-.noise{
-    position:fixed; inset:0; z-index:1; pointer-events:none; opacity:.035;
-    background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='90' height='90'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
-}
-.scanline-overlay{
-    position:fixed; inset:0; z-index:1; pointer-events:none;
-    background:repeating-linear-gradient(to bottom, rgba(255,255,255,0.018) 0px, rgba(255,255,255,0.018) 1px, transparent 1px, transparent 3px);
-}
-
-/* ---------------- boot ---------------- */
-#boot{
-    position:fixed; inset:0; z-index:20; background:var(--void);
-    display:flex; flex-direction:column; align-items:flex-start; justify-content:center;
-    padding:6vw; font-family:'Open Sans',monospace; letter-spacing:.08em; font-size:13px; color:var(--paper);
-    transition:opacity .6s var(--ease), visibility .6s;
-}
-#boot.hide{ opacity:0; visibility:hidden; pointer-events:none; }
-#boot .line{ opacity:0; margin-bottom:8px; color:var(--dim); }
-#boot .line.on{ opacity:1; animation:flicker-in .25s steps(2); }
-#boot .cursor{ display:inline-block; width:8px; height:14px; background:var(--paper); margin-left:4px; animation:blink 1s steps(1) infinite; vertical-align:middle; }
-@keyframes flicker-in{ 0%{opacity:0;} 50%{opacity:.5;} 100%{opacity:1;} }
-@keyframes blink{ 0%,49%{opacity:1;} 50%,100%{opacity:0;} }
-
-body{ min-height:100vh; display:flex; align-items:center; justify-content:center; }
-
-main{
-    position:relative; z-index:5;
-    width:100%;
-    display:flex; flex-direction:column; align-items:center;
-    padding: 6vh 6vw;
-    opacity:0; transform:translateY(14px);
-    transition: opacity .9s var(--ease) .15s, transform .9s var(--ease) .15s;
-}
-main.reveal{ opacity:1; transform:translateY(0); }
-
-.wordmark{
-    font-family:'Ndot 55','Open Sans',monospace;
-    font-size:clamp(24px,4vw,32px);
-    letter-spacing:.1em;
-}
-.eyebrow{
-    margin-top:12px; font-size:11px; letter-spacing:.32em; color:var(--dim);
-    text-transform:uppercase; display:flex; align-items:center; gap:10px;
-}
-.eyebrow .dot-pulse{ width:6px; height:6px; border-radius:50%; background:var(--paper); animation:pulse 1.6s ease-in-out infinite; }
-@keyframes pulse{ 0%,100%{opacity:.25; transform:scale(.8);} 50%{opacity:1; transform:scale(1);} }
-
-/* ---------------- login card ---------------- */
-.login-wrap{
-    margin-top:6vh;
-    position:relative;
-    width:min(360px, 92vw);
-}
-.corner{ position:absolute; width:18px; height:18px; border-color:var(--paper); border-style:solid; opacity:.8; z-index:3; }
-.corner.tl{ top:-9px; left:-9px; border-width:2px 0 0 2px; }
-.corner.tr{ top:-9px; right:-9px; border-width:2px 2px 0 0; }
-.corner.bl{ bottom:-9px; left:-9px; border-width:0 0 2px 2px; }
-.corner.br{ bottom:-9px; right:-9px; border-width:0 2px 2px 0; }
-
-.login-card{
-    background:var(--panel);
-    border:1px solid var(--line);
-    padding:30px 26px;
-}
-
-.login-head{
-    font-size:11px; letter-spacing:.2em; color:var(--dim); text-transform:uppercase;
-    margin-bottom:22px;
-}
-.login-head b{ color:var(--paper); }
-
-.field{
-    margin-bottom:18px;
-}
-.field label{
-    display:block;
-    font-size:10px;
-    letter-spacing:.22em;
-    text-transform:uppercase;
-    color:var(--dim);
-    margin-bottom:8px;
-}
-.field input{
-    width:100%;
-    background:transparent;
-    border:1px solid var(--line);
-    color:var(--paper);
-    font-family:'Open Sans',sans-serif;
-    font-size:13px;
-    letter-spacing:.04em;
-    padding:11px 12px;
-    outline:none;
-    transition: border-color .25s var(--ease);
-}
-.field input::placeholder{ color:var(--dim-2); }
-.field input:focus{ border-color:var(--paper); }
-
-.field-row{
-    display:flex; justify-content:space-between; align-items:center;
-    margin-top:-8px; margin-bottom:20px;
-}
-.remember{
-    display:flex; align-items:center; gap:8px;
-    font-size:10px; letter-spacing:.14em; color:var(--dim); text-transform:uppercase;
-}
-.remember input{ accent-color:var(--paper); width:12px; height:12px; }
-.forgot{
-    font-size:10px; letter-spacing:.14em; color:var(--dim); text-transform:uppercase;
-    text-decoration:none;
-    background:none;
-    border:none;
-    cursor:pointer;
-    font-family:inherit;
-}
-.forgot:hover{ color:var(--paper); }
-
-.submit-btn{
-    width:100%;
-    background:var(--paper);
-    color:var(--void);
-    border:1px solid var(--paper);
-    font-family:'Open Sans',sans-serif;
-    font-weight:600;
-    font-size:11px;
-    letter-spacing:.2em;
-    text-transform:uppercase;
-    padding:13px;
-    cursor:pointer;
-    transition: background .25s var(--ease), color .25s var(--ease);
-    position:relative;
-    overflow:hidden;
-}
-.submit-btn:hover{ background:transparent; color:var(--paper); }
-.submit-btn:disabled{ cursor:default; opacity:.6; }
-
-.msg{
-    margin-top:16px;
-    font-size:10.5px;
-    letter-spacing:.16em;
-    text-transform:uppercase;
-    color:var(--dim);
-    min-height:14px;
-    display:flex;
-    align-items:center;
-    gap:8px;
-}
-.msg .led{
-    width:6px; height:6px; border-radius:50%;
-    background:var(--paper);
-    opacity:0;
-}
-.msg.show .led{ opacity:1; animation:pulse 1s ease-in-out infinite; }
-.msg.error{ color:var(--paper); }
-.msg.error .led{ opacity:1; animation:none; }
-
-.back-link{
-    margin-top:34px;
-    font-size:10px;
-    letter-spacing:.2em;
-    text-transform:uppercase;
-    color:var(--dim);
-    text-decoration:none;
-}
-.back-link:hover{ color:var(--paper); }
-
-footer{
-    margin-top:5vh;
-    font-size:9.5px;
-    letter-spacing:.2em;
-    color:var(--dim-2);
-    text-transform:uppercase;
-    text-align:center;
-    line-height:1.8;
-}
-
-@media (prefers-reduced-motion: reduce){
-    *{ animation-duration:.001s !important; animation-iteration-count:1 !important; transition-duration:.001s !important; }
-}
-</style>
-</head>
-<body>
-
-<canvas id="dotfield"></canvas>
-<div class="noise"></div>
-<div class="scanline-overlay"></div>
-
-<div id="boot">
-    <div class="line" id="b1">VOID// ACCESS TERMINAL</div>
-    <div class="line" id="b2">RESOLVING internal.voidrecs.com...</div>
-    <div class="line" id="b3">AWAITING CREDENTIALS...</div>
-    <div class="line" id="b4">READY<span class="cursor"></span></div>
+<div class="cols two" style="margin-bottom:8px">
+  <div class="panel corners" style="margin:0"><h2>Quick capture</h2>
+    <input type="text" id="cap" placeholder="Idea, task, lyric, reminder…  (Enter = task)">
+    <div class="row" style="margin-top:10px"><button class="btn sm primary" data-cap="task">+ Task</button><button class="btn sm" data-cap="note">+ Note</button><button class="btn sm" data-cap="scratch">+ Scratchpad</button></div></div>
+  <div class="panel" style="margin:0"><h2>Jump back in</h2><div class="chips" id="recent"></div><div class="hr"></div><h2>Find an app</h2><input type="search" id="find" placeholder="Filter apps…"><div class="small muted" style="margin-top:8px">Tip: <kbd>Ctrl</kbd> <kbd>K</kbd> opens the command palette anywhere.</div></div>
 </div>
-
-<main id="main">
-    <div class="wordmark">VOID RECORDS</div>
-    <div class="eyebrow"><span class="dot-pulse"></span>INTERNAL SYSTEMS LOGIN</div>
-
-    <div class="login-wrap">
-        <div class="corner tl"></div>
-        <div class="corner tr"></div>
-        <div class="corner bl"></div>
-        <div class="corner br"></div>
-
-        <div class="login-card">
-            <div class="login-head">Sign in with your <b>VOID</b> employee account</div>
-
-            <form id="loginForm">
-                <div class="field">
-                    <label for="employeeId">Email</label>
-                    <input type="email" id="employeeId" placeholder="you@voidrecs.com" autocomplete="username" required>
-                </div>
-                <div class="field">
-                    <label for="password">Password</label>
-                    <input type="password" id="password" placeholder="&bull; &bull; &bull; &bull; &bull; &bull; &bull; &bull;" autocomplete="current-password" required>
-                </div>
-
-                <div class="field-row">
-                    <label class="remember">
-                        <input type="checkbox" id="remember">
-                        Remember Me
-                    </label>
-                    <button type="button" class="forgot" id="forgotBtn">Forgot?</button>
-                </div>
-
-                <button type="submit" class="submit-btn" id="submitBtn">Authenticate</button>
-
-                <div class="msg" id="loginMsg"><span class="led"></span><span id="loginMsgText"></span></div>
-            </form>
-        </div>
-    </div>
-
-    <a class="back-link" href="https://voidrecs.com">&larr; Back to voidrecs.com</a>
-
-    <footer>VOID RECORDS &middot; GLASGOW &middot; INTERNAL USE ONLY<br>UNAUTHORISED ACCESS PROHIBITED</footer>
-</main>
-
+<div id="cats"></div></div>
+<script src="assets/suite.js"></script>
 <script>
-/* ---------------- ambient dot-grid background ---------------- */
-(function(){
-    var canvas=document.getElementById('dotfield'), ctx=canvas.getContext('2d');
-    var w,h,cols,rows,spacing=26,dots=[];
-    var mouse={x:-9999,y:-9999};
-    var reduced=window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-    function resize(){
-        w=canvas.width=window.innerWidth; h=canvas.height=window.innerHeight;
-        cols=Math.ceil(w/spacing)+2; rows=Math.ceil(h/spacing)+2; dots=[];
-        for(var y=0;y<rows;y++){ for(var x=0;x<cols;x++){
-            dots.push({x:x*spacing,y:y*spacing,base:Math.random()*0.16+0.04,phase:Math.random()*Math.PI*2,speed:Math.random()*0.6+0.3});
-        }}
-    }
-    window.addEventListener('resize',resize);
-    window.addEventListener('mousemove',function(e){mouse.x=e.clientX;mouse.y=e.clientY;});
-    window.addEventListener('mouseleave',function(){mouse.x=-9999;mouse.y=-9999;});
-    var t=0;
-    function draw(){
-        ctx.clearRect(0,0,w,h);
-        for(var i=0;i<dots.length;i++){
-            var d=dots[i];
-            var flicker= reduced? d.base : d.base+Math.sin(t*d.speed+d.phase)*0.05;
-            var dx=d.x-mouse.x, dy=d.y-mouse.y, dist=Math.sqrt(dx*dx+dy*dy);
-            var boost=Math.max(0,1-dist/180)*0.55;
-            var alpha=Math.min(1,flicker+boost);
-            ctx.fillStyle='rgba(255,255,255,'+alpha+')';
-            var r=1+boost*1.3;
-            ctx.beginPath(); ctx.arc(d.x,d.y,r,0,Math.PI*2); ctx.fill();
-        }
-        t+=0.02; requestAnimationFrame(draw);
-    }
-    resize(); draw();
-})();
+SU.ready(()=>{
+  const $=SU.$, h=SU.h, cfg=SU.getCfg()||{}, hr=new Date().getHours();
+  $('#greet').textContent=(hr<5?'Late one':hr<12?'Good morning':hr<18?'Good afternoon':'Good evening')+(cfg.name?', '+cfg.name:'')+'.';
+  $('#eyebrow').textContent=(cfg.wordmark||'SUITE')+' · private workspace';
+  const stampF=()=>{ $('#stamp').textContent=new Date().toLocaleDateString('en-GB',{weekday:'long',year:'numeric',month:'long',day:'numeric'})+' · '+new Date().toLocaleTimeString('en-GB',{hour:'2-digit',minute:'2-digit'}); };
+  stampF(); setInterval(stampF,15000);
 
-/* ---------------- boot sequence ---------------- */
-(function(){
-    ['b1','b2','b3','b4'].forEach(function(id,i){
-        setTimeout(function(){ document.getElementById(id).classList.add('on'); }, 220+i*260);
+  function stats(){
+    const tasks=SU.store.get('tasks',[]), open=tasks.filter(t=>!t.done), od=open.filter(t=>t.due&&t.due<SU.today()).length;
+    const habits=SU.store.get('habits',[]), td=SU.today(), hd=habits.filter(x=>x.days&&x.days[td]).length;
+    const ev=SU.store.get('countdowns',[]).filter(e=>e.when&&new Date(e.when)>Date.now()).sort((a,b)=>a.when.localeCompare(b.when))[0];
+    const d=ev?Math.ceil((new Date(ev.when)-Date.now())/864e5):null;
+    const data=[[open.length+(od?' · '+od+' late':''),'Open tasks'],[habits.length?hd+' / '+habits.length:'—','Habits today'],[SU.store.get('notes',[]).length,'Notes'],[ev?d+'d':'—',ev?'Until '+ev.name.slice(0,22):'Next countdown']];
+    $('#stats').innerHTML=data.map(([n,l])=>'<div class="stat"><div class="n">'+SU.esc(n)+'</div><div class="l">'+SU.esc(l)+'</div></div>').join('');
+  }
+  stats();
+
+  function capture(kind){
+    const v=$('#cap').value.trim(); if(!v) return;
+    if(kind==='task'){ const t=SU.store.get('tasks',[]); t.push({id:SU.uid(),created:Date.now(),task:v,area:'Life',priority:'Med',due:'',done:false,notes:''}); SU.store.set('tasks',t); }
+    else if(kind==='note'){ const n=SU.store.get('notes',[]); n.push({id:SU.uid(),title:v.slice(0,60),body:v,pin:false,updated:Date.now()}); SU.store.set('notes',n); }
+    else SU.store.set('scratch',(SU.store.get('scratch','')+'\n['+new Date().toLocaleString('en-GB')+'] '+v).trim());
+    $('#cap').value=''; SU.toast('Added to '+kind); stats();
+  }
+  $('#cap').addEventListener('keydown',e=>{ if(e.key==='Enter') capture('task'); });
+  SU.$$('[data-cap]').forEach(b=>b.onclick=()=>capture(b.dataset.cap));
+
+  const rec=SU.store.get('recent',[]).map(SU.appById).filter(Boolean);
+  $('#recent').innerHTML=''; if(rec.length) rec.forEach(a=>$('#recent').append(h('a',{class:'tag chip',href:SU.appUrl(a.id)},a.name))); else $('#recent').append(h('span',{class:'small muted'},'Apps you open show up here'));
+
+  function cats(q){
+    const box=$('#cats'); box.innerHTML='';
+    Object.keys(SU.CATS).forEach(c=>{
+      const apps=SU.APPS.filter(a=>a.cat===c&&(!q||(a.name+' '+a.desc).toLowerCase().includes(q))); if(!apps.length) return;
+      box.append(h('div',{class:'section-label',id:c},SU.CATS[c]+' · '+apps.length),
+        h('div',{class:'grid'},apps.map(a=>h('a',{class:'card',href:SU.appUrl(a.id)},h('div',{class:'row',style:'justify-content:space-between'},h('span',{class:'tag'},SU.CATS[a.cat])),
+          h('div',null,h('div',{class:'title'},a.name),h('div',{class:'desc'},a.desc)),h('div',{class:'arrow'},'→')))));
     });
-    setTimeout(function(){
-        document.getElementById('boot').classList.add('hide');
-        document.getElementById('main').classList.add('reveal');
-    }, 1500);
-})();
-</script>
-
-<!-- ---------------- Firebase auth ---------------- -->
-<script type="module">
-import { initializeApp } from "https://www.gstatic.com/firebasejs/12.18.0/firebase-app.js";
-import { getAnalytics } from "https://www.gstatic.com/firebasejs/12.18.0/firebase-analytics.js";
-import {
-    getAuth,
-    signInWithEmailAndPassword,
-    setPersistence,
-    browserLocalPersistence,
-    browserSessionPersistence,
-    sendPasswordResetEmail,
-    onAuthStateChanged
-} from "https://www.gstatic.com/firebasejs/12.18.0/firebase-auth.js";
-
-const firebaseConfig = {
-    apiKey: "AIzaSyBvaCkVqaFNgoXP1K-2MF-PV5wzriNQnLQ",
-    authDomain: "void-internal-74981.firebaseapp.com",
-    projectId: "void-internal-74981",
-    storageBucket: "void-internal-74981.firebasestorage.app",
-    messagingSenderId: "321500849804",
-    appId: "1:321500849804:web:abea7b3fff95afdd953da9",
-    measurementId: "G-MK95S9LNHX"
-};
-
-const app = initializeApp(firebaseConfig);
-try { getAnalytics(app); } catch (e) { /* analytics can fail on file:// or blocked contexts, that's fine */ }
-const auth = getAuth(app);
-
-const form = document.getElementById('loginForm');
-const btn = document.getElementById('submitBtn');
-const msg = document.getElementById('loginMsg');
-const msgText = document.getElementById('loginMsgText');
-const forgotBtn = document.getElementById('forgotBtn');
-
-function showMsg(text, isError){
-    msg.classList.add('show');
-    msg.classList.toggle('error', !!isError);
-    msgText.textContent = text;
-}
-
-function friendlyError(code){
-    switch(code){
-        case 'auth/invalid-email': return 'INVALID EMAIL FORMAT';
-        case 'auth/user-disabled': return 'ACCOUNT DISABLED';
-        case 'auth/user-not-found':
-        case 'auth/wrong-password':
-        case 'auth/invalid-credential': return 'INCORRECT EMAIL OR PASSWORD';
-        case 'auth/too-many-requests': return 'TOO MANY ATTEMPTS — TRY AGAIN LATER';
-        case 'auth/network-request-failed': return 'NETWORK ERROR — CHECK CONNECTION';
-        default: return 'AUTHENTICATION FAILED';
-    }
-}
-
-// If already signed in, skip straight to the portal
-onAuthStateChanged(auth, function(user){
-    if (user) {
-        window.location.href = '/portal';
-    }
+    if(!box.children.length) box.append(h('div',{class:'empty'},'No apps match'));
+  }
+  cats(''); $('#find').addEventListener('input',e=>cats(e.target.value.toLowerCase().trim()));
+  if(location.hash){ const t=document.getElementById(location.hash.slice(1)); if(t) setTimeout(()=>t.scrollIntoView(),400); }
 });
-
-form.addEventListener('submit', async function(e){
-    e.preventDefault();
-
-    const email = document.getElementById('employeeId').value.trim();
-    const password = document.getElementById('password').value.trim();
-    const remember = document.getElementById('remember').checked;
-
-    if(!email || !password){
-        showMsg('ENTER YOUR CREDENTIALS TO CONTINUE', true);
-        return;
-    }
-
-    btn.disabled = true;
-    btn.textContent = 'AUTHENTICATING...';
-    showMsg('VERIFYING CREDENTIALS...', false);
-
-    try {
-        await setPersistence(auth, remember ? browserLocalPersistence : browserSessionPersistence);
-        await signInWithEmailAndPassword(auth, email, password);
-
-        btn.textContent = 'ACCESS GRANTED';
-        showMsg('REDIRECTING TO INTERNAL SYSTEMS...', false);
-
-        setTimeout(function(){
-            window.location.href = '/portal';
-        }, 700);
-    } catch (err) {
-        btn.disabled = false;
-        btn.textContent = 'Authenticate';
-        showMsg(friendlyError(err.code), true);
-    }
-});
-
-forgotBtn.addEventListener('click', async function(){
-    const email = document.getElementById('employeeId').value.trim();
-    if(!email){
-        showMsg('ENTER YOUR EMAIL FIRST', true);
-        return;
-    }
-    try {
-        await sendPasswordResetEmail(auth, email);
-        showMsg('PASSWORD RESET EMAIL SENT', false);
-    } catch (err) {
-        showMsg(friendlyError(err.code), true);
-    }
-});
-</script>
-</body>
-</html>
+</script></body></html>

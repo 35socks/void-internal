@@ -1,0 +1,45 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Timers</title><link rel="stylesheet" href="../assets/suite.css"></head>
+<body data-app="timer"><div id="app"><div id="root"></div></div>
+<script src="../assets/suite.js"></script>
+<script>
+SU.ready(()=>{
+  const beep=()=>{ try{ const c=new (window.AudioContext||window.webkitAudioContext)(); [0,.25,.5].forEach(t=>{ const o=c.createOscillator(),g=c.createGain(); o.frequency.value=880; g.gain.value=.15; o.connect(g); g.connect(c.destination); o.start(c.currentTime+t); o.stop(c.currentTime+t+.15); }); }catch{} };
+  const T=(ms)=>{ const s=ms/1000, m=Math.floor(s/60), r=s%60; return SU.pad(m)+':'+(r<10?'0':'')+r.toFixed(ms%1000&&0?0:0).replace(/\.\d+$/,''); };
+  const mmss=ms=>{ ms=Math.max(0,ms); const s=Math.ceil(ms/1000); return SU.pad(Math.floor(s/60))+':'+SU.pad(s%60); };
+  const sw=ms=>{ const m=Math.floor(ms/60000), s=Math.floor(ms%60000/1000), c=Math.floor(ms%1000/10); return SU.pad(m)+':'+SU.pad(s)+'.'+SU.pad(c); };
+  SU.tabs(SU.$('#root'),[
+   {label:'Pomodoro',render:el=>{
+      const st=SU.store.get('pomo',{work:25,brk:5,long:15,done:0});
+      let mode='work', left=st.work*60000, run=false, end=0, iv=null;
+      const disp=SU.h('div',{class:'big center',style:'margin:10px 0'}), lbl=SU.h('div',{class:'eyebrow',style:'justify-content:center'}), cnt=SU.h('div',{class:'small muted center',style:'margin-top:12px'});
+      const len=m=>({work:st.work,brk:st.brk,long:st.long}[m])*60000;
+      const draw=()=>{ disp.textContent=mmss(left); lbl.textContent={work:'Focus',brk:'Short break',long:'Long break'}[mode]; cnt.textContent='Sessions completed: '+st.done; document.title=(run?mmss(left)+' · ':'')+'Timers'; };
+      const tick=()=>{ left=end-Date.now(); if(left<=0){ run=false; clearInterval(iv); beep(); if(mode==='work'){ st.done++; SU.store.set('pomo',st); mode=st.done%4===0?'long':'brk'; } else mode='work'; left=len(mode); SU.toast('Session over'); } draw(); };
+      const go=SU.h('button',{class:'btn primary',onclick:()=>{ if(run){ run=false; clearInterval(iv); go.textContent='Resume'; } else { run=true; end=Date.now()+left; iv=setInterval(tick,250); go.textContent='Pause'; } }},'Start');
+      const reset=SU.h('button',{class:'btn ghost',onclick:()=>{ run=false; clearInterval(iv); left=len(mode); go.textContent='Start'; draw(); }},'Reset');
+      const skip=SU.h('button',{class:'btn ghost',onclick:()=>{ run=false; clearInterval(iv); mode=mode==='work'?'brk':'work'; left=len(mode); go.textContent='Start'; draw(); }},'Skip');
+      const set=(k,l)=>SU.h('label',{class:'f',style:'flex:1;margin:0'},SU.h('span',null,l),SU.h('input',{type:'number',min:1,value:st[k],onchange:e=>{ st[k]=Math.max(1,+e.target.value||1); SU.store.set('pomo',st); if(!run){ left=len(mode); draw(); } }}));
+      el.append(SU.h('div',{class:'panel corners'},lbl,disp,SU.h('div',{class:'row',style:'justify-content:center'},go,reset,skip),cnt),SU.h('div',{class:'panel'},SU.h('h2',null,'Lengths (minutes)'),SU.h('div',{class:'row'},set('work','Focus'),set('brk','Break'),set('long','Long'))));
+      draw(); }},
+   {label:'Countdown',render:el=>{
+      let left=0,run=false,end=0,iv=null; const disp=SU.h('div',{class:'big center',style:'margin:10px 0'},'00:00');
+      const m=SU.h('input',{type:'number',min:0,value:10,style:'width:90px'}), s=SU.h('input',{type:'number',min:0,max:59,value:0,style:'width:90px'});
+      const draw=()=>disp.textContent=mmss(left);
+      const go=SU.h('button',{class:'btn primary',onclick:()=>{ if(run){ run=false; clearInterval(iv); go.textContent='Resume'; return; } if(!left) left=((+m.value||0)*60+(+s.value||0))*1000; if(!left) return; run=true; end=Date.now()+left; go.textContent='Pause';
+        iv=setInterval(()=>{ left=end-Date.now(); if(left<=0){ left=0; run=false; clearInterval(iv); beep(); go.textContent='Start'; SU.toast('Time!'); } draw(); },200); }},'Start');
+      el.append(SU.h('div',{class:'panel corners'},SU.h('div',{class:'row',style:'justify-content:center'},m,'min',s,'sec'),disp,SU.h('div',{class:'row',style:'justify-content:center'},go,SU.h('button',{class:'btn ghost',onclick:()=>{ run=false; clearInterval(iv); left=0; go.textContent='Start'; draw(); }},'Reset'))));
+      }},
+   {label:'Stopwatch',render:el=>{
+      let t0=0,acc=0,run=false,raf=0,laps=[]; const disp=SU.h('div',{class:'big center mono',style:'margin:10px 0'},'00:00.00'), list=SU.h('div',{class:'mono small',style:'margin-top:12px'});
+      const cur=()=>acc+(run?performance.now()-t0:0);
+      const loop=()=>{ disp.textContent=sw(cur()); if(run) raf=requestAnimationFrame(loop); };
+      const drawLaps=()=>{ list.innerHTML=laps.map((l,i)=>'<div class="row" style="justify-content:space-between;border-bottom:1px solid var(--line);padding:6px 0"><span class="muted">Lap '+(i+1)+'</span><span>+'+sw(l.d)+'</span><span>'+sw(l.t)+'</span></div>').reverse().join(''); };
+      const go=SU.h('button',{class:'btn primary',onclick:()=>{ if(run){ acc=cur(); run=false; go.textContent='Resume'; } else { t0=performance.now(); run=true; go.textContent='Pause'; loop(); } }},'Start');
+      el.append(SU.h('div',{class:'panel corners'},disp,SU.h('div',{class:'row',style:'justify-content:center'},go,
+        SU.h('button',{class:'btn ghost',onclick:()=>{ if(!run&&!acc) return; const t=cur(), p=laps.length?laps[laps.length-1].t:0; laps.push({t,d:t-p}); drawLaps(); }},'Lap'),
+        SU.h('button',{class:'btn ghost',onclick:()=>{ run=false; acc=0; laps=[]; go.textContent='Start'; disp.textContent='00:00.00'; drawLaps(); }},'Reset')),list));
+      }}
+  ]);
+});
+</script></body></html>

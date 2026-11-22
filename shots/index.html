@@ -1,0 +1,22 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Shot List</title><link rel="stylesheet" href="../assets/suite.css"></head>
+<body data-app="shots"><div id="app"><div id="root"></div></div>
+<script src="../assets/suite.js"></script>
+<script>
+SU.ready(()=>{
+  SU.crud(SU.$('#root'),{key:'shots',noun:'shot',csv:'shot-list',filter:'status',sort:'scene',
+    fields:[
+      {k:'scene',l:'Scene',def:'1'},
+      {k:'shot',l:'Shot',def:'A'},
+      {k:'desc',l:'Description',req:true,t:'area'},
+      {k:'size',l:'Size',t:'select',opts:['WS','MS','CU','ECU','OTS','POV','Insert','Establishing'],def:'MS'},
+      {k:'lens',l:'Lens'},
+      {k:'move',l:'Movement',t:'select',opts:['Static','Pan','Tilt','Dolly','Handheld','Gimbal','Crane','Zoom','Slider'],def:'Static'},
+      {k:'loc',l:'Location'},
+      {k:'status',l:'Status',t:'select',opts:['Planned','Shot','Reshoot','Dropped'],def:'Planned'},
+      {k:'notes',l:'Notes',t:'area',list:false}
+    ],
+    summary:items=>{ const d=items.filter(i=>i.status==='Shot').length; return d+' / '+items.length+' shot ('+(items.length?Math.round(d/items.length*100):0)+'%)'; }
+  });
+});
+</script></body></html>

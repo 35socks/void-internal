@@ -1,0 +1,39 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Sun Planner</title><link rel="stylesheet" href="../assets/suite.css">
+<style>.arc{width:100%;height:150px;display:block}</style></head>
+<body data-app="sun"><div id="app"><div class="cols">
+<div class="panel"><h2>Where &amp; when</h2>
+<div class="row"><label class="f grow"><span>Latitude</span><input type="number" id="lat" step="0.0001" value="55.8642"></label><label class="f grow"><span>Longitude</span><input type="number" id="lon" step="0.0001" value="-4.2518"></label></div>
+<div class="row"><label class="f grow"><span>Date</span><input type="date" id="date"></label><label class="f grow"><span>UTC offset (h)</span><input type="number" id="tz" step="0.5"></label></div>
+<div class="row"><button class="btn" id="geo">Use my location</button><button class="btn ghost" id="today">Today</button><button class="btn ghost" id="save">Save place</button></div>
+<div class="chips" id="places" style="margin-top:12px"></div><div class="small muted" style="margin-top:12px">Defaults to Glasgow. Time zone defaults to your browser's — change the offset if planning a shoot elsewhere (include DST).</div></div>
+<div class="panel corners"><h2>Light for the day</h2><svg id="arc" class="arc" viewBox="0 0 400 150" preserveAspectRatio="none"></svg><dl class="kv" id="ev" style="margin-top:14px"></dl></div></div></div>
+<script src="../assets/suite.js"></script>
+<script>
+SU.ready(()=>{
+  const $=SU.$, rad=Math.PI/180;
+  $('#date').value=SU.today(); $('#tz').value=-new Date().getTimezoneOffset()/60;
+  function solar(lat,lon,date){ const d=new Date(date+'T12:00:00Z'), doy=Math.floor((d-Date.UTC(d.getUTCFullYear(),0,0))/864e5), g=2*Math.PI/365*(doy-1);
+    const eq=229.18*(0.000075+0.001868*Math.cos(g)-0.032077*Math.sin(g)-0.014615*Math.cos(2*g)-0.040849*Math.sin(2*g));
+    const dec=0.006918-0.399912*Math.cos(g)+0.070257*Math.sin(g)-0.006758*Math.cos(2*g)+0.000907*Math.sin(2*g)-0.002697*Math.cos(3*g)+0.00148*Math.sin(3*g);
+    const noon=720-4*lon-eq; // minutes UTC
+    const at=h=>{ const c=(Math.sin(h*rad)-Math.sin(lat*rad)*Math.sin(dec))/(Math.cos(lat*rad)*Math.cos(dec)); if(c>1||c<-1) return null; const H=Math.acos(c)/rad; return [noon-4*H,noon+4*H]; };
+    return {noon,dec,at,elev:m=>{ const H=(m-noon)/4*rad; return Math.asin(Math.sin(lat*rad)*Math.sin(dec)+Math.cos(lat*rad)*Math.cos(dec)*Math.cos(H))/rad; }}; }
+  const T=(m,tz)=>{ if(m==null) return '—'; m=((m+tz*60)%1440+1440)%1440; return SU.pad(Math.floor(m/60))+':'+SU.pad(Math.floor(m%60)); };
+  function run(){ const lat=+$('#lat').value, lon=+$('#lon').value, tz=+$('#tz').value, s=solar(lat,lon,$('#date').value);
+    const sr=s.at(-.833), cv=s.at(-6), gd=s.at(6), bh1=s.at(-4), bh2=s.at(-8);
+    const row=(l,v)=>'<dt>'+l+'</dt><dd>'+v+'</dd>';
+    if(!sr){ $('#ev').innerHTML=row('Sun','No sunrise/sunset on this date at this latitude (polar day or night)'); } else {
+    $('#ev').innerHTML=row('Day length',SU.dur((sr[1]-sr[0])*60).slice(0,-3)+' h')+row('First light (civil)',cv?T(cv[0],tz):'—')+row('Blue hour (AM)',bh2&&bh1?T(bh2[0],tz)+' – '+T(bh1[0],tz):'—')+row('Sunrise',T(sr[0],tz))+row('Golden hour (AM)',gd?T(sr[0],tz)+' – '+T(gd[0],tz):'—')+row('Solar noon',T(s.noon,tz)+' · '+s.elev(s.noon).toFixed(0)+'° high')+row('Golden hour (PM)',gd?T(gd[1],tz)+' – '+T(sr[1],tz):'—')+row('Sunset',T(sr[1],tz))+row('Blue hour (PM)',bh2&&bh1?T(bh1[1],tz)+' – '+T(bh2[1],tz):'—')+row('Last light (civil)',cv?T(cv[1],tz):'—'); }
+    // elevation arc (local clock)
+    let pts=[], off=-tz*60; for(let i=0;i<=96;i++){ const loc=i*15, utc=loc+off, e=s.elev(utc); pts.push([i/96*400,75-Math.max(-30,Math.min(60,e))*1.1]); }
+    $('#arc').innerHTML='<line x1="0" x2="400" y1="75" y2="75" stroke="#333" stroke-dasharray="3 4"/><polyline fill="none" stroke="#fff" stroke-width="1.5" points="'+pts.map(p=>p.join(',')).join(' ')+'"/>'+[0,6,12,18,24].map(h=>'<text x="'+(h/24*400)+'" y="146" fill="#6a6a6a" font-size="9" text-anchor="'+(h==0?'start':h==24?'end':'middle')+'">'+SU.pad(h%24)+'h</text>').join('')
+      +(()=>{ const n=new Date(), m=n.getHours()*60+n.getMinutes(); return $('#date').value===SU.today()?'<line x1="'+(m/1440*400)+'" x2="'+(m/1440*400)+'" y1="0" y2="135" stroke="#fff" opacity=".35"/>':''; })(); }
+  ['#lat','#lon','#date','#tz'].forEach(i=>$(i).addEventListener('input',run));
+  $('#today').onclick=()=>{ $('#date').value=SU.today(); run(); };
+  $('#geo').onclick=()=>navigator.geolocation?navigator.geolocation.getCurrentPosition(p=>{ $('#lat').value=p.coords.latitude.toFixed(4); $('#lon').value=p.coords.longitude.toFixed(4); run(); },()=>SU.toast('Location unavailable')):SU.toast('No geolocation');
+  function places(){ const P=SU.store.get('sunplaces',[]); $('#places').innerHTML=''; P.forEach((p,i)=>$('#places').append(SU.h('span',{class:'tag chip',onclick:()=>{ $('#lat').value=p.lat; $('#lon').value=p.lon; $('#tz').value=p.tz; run(); },oncontextmenu:e=>{ e.preventDefault(); P.splice(i,1); SU.store.set('sunplaces',P); places(); },title:'Right-click to remove'},p.name))); }
+  $('#save').onclick=async()=>{ const n=await SU.prompt('Name this place'); if(!n) return; const P=SU.store.get('sunplaces',[]); P.push({name:n,lat:$('#lat').value,lon:$('#lon').value,tz:$('#tz').value}); SU.store.set('sunplaces',P); places(); };
+  places(); run();
+});
+</script></body></html>

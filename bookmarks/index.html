@@ -1,0 +1,16 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Bookmarks</title><link rel="stylesheet" href="../assets/suite.css"></head>
+<body data-app="bookmarks"><div id="app"><div id="root"></div></div>
+<script src="../assets/suite.js"></script>
+<script>
+SU.ready(()=>{
+  SU.crud(SU.$('#root'),{key:'bookmarks',noun:'link',csv:'bookmarks',sort:'title',
+    fields:[
+      {k:'title',l:'Title',req:true},
+      {k:'url',l:'URL',t:'url',req:true,ph:'https://'},
+      {k:'tags',l:'Tags',ph:'comma separated'},
+      {k:'notes',l:'Notes',t:'area',list:false}
+    ]
+  });
+});
+</script></body></html>

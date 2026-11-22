@@ -1,0 +1,43 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Lab Launcher</title><link rel="stylesheet" href="../assets/suite.css"></head>
+<body data-app="launcher"><div id="app">
+<div class="row" style="margin-bottom:14px"><button class="btn primary" id="add">+ Add service</button><button class="btn ghost" id="ping">Check all</button><span class="small muted">Checks use a no-cors request from your browser: it shows whether a host answers from <em>this</em> device. HTTPS pages can't reach plain http:// services (mixed content) — use https or open this suite locally.</span></div>
+<div class="grid" id="grid"></div></div>
+<script src="../assets/suite.js"></script>
+<script>
+SU.ready(()=>{
+  const K='launcher'; let items=SU.store.get(K,[]); const status={};
+  const save=()=>SU.store.set(K,items);
+  const fields=[{k:'name',l:'Name',req:true},{k:'url',l:'URL',t:'url',ph:'https://jellyfin.home:8096'},{k:'group',l:'Group',ph:'Media, Network, Storage…'},{k:'note',l:'Note'}];
+  async function check(it){
+    status[it.id]='…'; draw();
+    const ctl=new AbortController(), t=setTimeout(()=>ctl.abort(),4000), t0=performance.now();
+    try{ await fetch(it.url,{mode:'no-cors',cache:'no-store',signal:ctl.signal}); status[it.id]=Math.round(performance.now()-t0)+' ms'; }
+    catch{ status[it.id]='down'; } clearTimeout(t); draw();
+  }
+  function draw(){
+    const g=SU.$('#grid'); g.innerHTML='';
+    if(!items.length){ g.append(SU.h('div',{class:'card empty',style:'grid-column:1/-1;cursor:default'},'No services yet')); return; }
+    items.slice().sort((a,b)=>(a.group||'').localeCompare(b.group||'')||a.name.localeCompare(b.name)).forEach(it=>{
+      const s=status[it.id];
+      g.append(SU.h('a',{class:'card',href:it.url,target:'_blank',rel:'noopener'},
+        SU.h('div',{class:'row',style:'justify-content:space-between'},SU.h('span',{class:'tag'},it.group||'Service'),
+          s?SU.h('span',{class:'small mono '+(s==='down'?'bad':s==='…'?'muted':'ok')},s==='down'?'● down':s==='…'?'…':'● '+s):null),
+        SU.h('div',null,SU.h('div',{class:'title'},it.name),SU.h('div',{class:'desc'},it.note||it.url)),
+        SU.h('div',{class:'row',style:'justify-content:space-between'},
+          SU.h('button',{class:'btn sm ghost',onclick:e=>{e.preventDefault();e.stopPropagation();edit(it);}},'Edit'),
+          SU.h('span',{class:'arrow'},'→'))));
+    });
+  }
+  async function edit(it){
+    const f=SU.buildForm(fields,it||{}), acts=[{label:'Cancel',cls:'ghost',value:null}];
+    if(it) acts.unshift({label:'Delete',cls:'danger ghost',value:'del'});
+    acts.push({label:'Save',cls:'primary',value:'save',validate:()=>{ const d=f.get(); if(!d.name||!d.url){ SU.toast('Name and URL required'); return false; } }});
+    const r=await SU.modal(it?'Edit service':'Add service',f.el,acts);
+    if(r==='del'){ items=items.filter(x=>x!==it); save(); draw(); }
+    else if(r==='save'){ const d=f.get(); if(!/^https?:\/\//.test(d.url)) d.url='http://'+d.url; if(it) Object.assign(it,d); else items.push(Object.assign({id:SU.uid()},d)); save(); draw(); }
+  }
+  SU.$('#add').onclick=()=>edit(); SU.$('#ping').onclick=()=>items.forEach(check);
+  draw(); items.forEach(check);
+});
+</script></body></html>

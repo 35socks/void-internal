@@ -1,0 +1,39 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Camera Calc</title><link rel="stylesheet" href="../assets/suite.css"></head>
+<body data-app="cam"><div id="app"><div id="root"></div></div>
+<script src="../assets/suite.js"></script>
+<script>
+SU.ready(()=>{
+  const h=SU.h, num=(id,l,v,step)=>h('label',{class:'f grow'},h('span',null,l),h('input',{type:'number',id,value:v,step:step||'any'}));
+  const $=SU.$, lg=Math.log2, f2=(x,d=2)=>isFinite(x)?(+x.toFixed(d)).toString():'∞';
+  const SENS=[['Full frame 36×24',36,1],['APS-C (Sony/Nikon) 23.5×15.6',23.5,1.53],['APS-C (Canon) 22.3×14.9',22.3,1.61],['Micro 4/3 17.3×13',17.3,2.08],['Super 35 24.9×18.7',24.89,1.45],['1-inch 13.2×8.8',13.2,2.73],['Super 16 12.5×7.4',12.52,2.87],['Medium format 43.8×32.9',43.8,.82]];
+  const sens=()=>h('select',{id:'sens'},SENS.map(([n],i)=>h('option',{value:i},n)));
+  const shut=t=>t>=1?f2(t,1)+'s':'1/'+Math.round(1/t);
+  SU.tabs(SU.$('#root'),[
+  {label:'Exposure',render:el=>{
+    el.append(h('div',{class:'panel'},h('div',{class:'row'},num('ap','Aperture f/',2.8,.1),h('label',{class:'f grow'},h('span',null,'Shutter (1/x sec)'),h('input',{type:'number',id:'sh',value:50})),num('iso','ISO',400,100)),h('div',{class:'big',id:'ev',style:'font-size:30px'}),h('div',{class:'small muted',id:'evn'}),h('div',{class:'hr'}),h('h2',null,'Equivalent exposures'),h('div',{class:'tablewrap'},h('table',{id:'eqt'}))));
+    const run=()=>{ const N=+$('#ap').value,t=1/(+$('#sh').value),iso=+$('#iso').value; const ev=lg(N*N/t)-lg(iso/100); $('#ev').textContent='EV '+f2(ev,1)+' @ ISO 100  ('+f2(ev+lg(iso/100),1)+' @ ISO '+iso+')';
+      $('#evn').textContent=ev<4?'Very dim — night / interior':ev<9?'Indoor / low light':ev<12?'Overcast / shade':ev<15?'Bright, sunny scene':'Extremely bright'; const aps=[1.4,2,2.8,4,5.6,8,11,16];
+      $('#eqt').innerHTML='<thead><tr><th>Aperture</th><th class="num">Shutter</th><th class="num">at ISO '+iso+'</th></tr></thead><tbody>'+aps.map(a=>{ const tt=a*a/Math.pow(2,ev+lg(iso/100)-lg(iso/100)+0)*1; const T=a*a/Math.pow(2,ev)/(iso/100)*(1); return '<tr><td>f/'+a+'</td><td class="num">'+shut(a*a/Math.pow(2,ev+lg(iso/100)))+'</td><td class="num">'+iso+'</td></tr>'; }).join('')+'</tbody>'; };
+    el.addEventListener('input',run); run(); }},
+  {label:'Depth of field',render:el=>{
+    el.append(h('div',{class:'cols'},h('div',{class:'panel'},h('label',{class:'f'},h('span',null,'Sensor'),sens()),h('div',{class:'row'},num('fl','Focal length (mm)',50),num('fa','Aperture f/',2.8,.1),num('fd','Subject distance (m)',3,.1))),h('div',{class:'panel'},h('dl',{class:'kv',id:'dof'}))));
+    const run=()=>{ const s=SENS[$('#sens').value], f=+$('#fl').value,N=+$('#fa').value,sd=+$('#fd').value*1000, c=0.029/s[2]; const H=f*f/(N*c)+f, near=sd*(H-f)/(H+sd-2*f), far=sd<H?sd*(H-f)/(H-sd):Infinity;
+      $('#dof').innerHTML='<dt>Circle of confusion</dt><dd>'+f2(c*1000,1)+' µm</dd><dt>Hyperfocal</dt><dd>'+f2(H/1000)+' m</dd><dt>Near limit</dt><dd>'+f2(near/1000)+' m</dd><dt>Far limit</dt><dd>'+(isFinite(far)?f2(far/1000)+' m':'infinity')+'</dd><dt>Total DoF</dt><dd>'+(isFinite(far)?f2((far-near)/1000)+' m':'infinite')+'</dd><dt>35mm equiv.</dt><dd>'+f2(f*s[2],1)+' mm f/'+f2(N*s[2],1)+'</dd>'; };
+    el.addEventListener('input',run); el.addEventListener('change',run); run(); }},
+  {label:'Field of view',render:el=>{
+    el.append(h('div',{class:'cols'},h('div',{class:'panel'},h('label',{class:'f'},h('span',null,'Sensor'),sens()),h('div',{class:'row'},num('fl','Focal length (mm)',35),num('ar','Aspect (w/h)',1.5,.01))),h('div',{class:'panel'},h('dl',{class:'kv',id:'fov'}))));
+    const run=()=>{ const s=SENS[$('#sens').value], f=+$('#fl').value, w=s[1], hh=w/(+$('#ar').value||1.5), d=Math.hypot(w,hh), A=x=>2*Math.atan(x/2/f)*180/Math.PI;
+      $('#fov').innerHTML='<dt>Horizontal</dt><dd>'+f2(A(w),1)+'°</dd><dt>Vertical</dt><dd>'+f2(A(hh),1)+'°</dd><dt>Diagonal</dt><dd>'+f2(A(d),1)+'°</dd><dt>Crop factor</dt><dd>'+s[2]+'×</dd><dt>Full-frame equiv.</dt><dd>'+f2(f*s[2],1)+' mm</dd><dt>Sensor width</dt><dd>'+f2(w,1)+' mm</dd>'; };
+    el.addEventListener('input',run); el.addEventListener('change',run); run(); }},
+  {label:'Shutter & ND',render:el=>{
+    el.append(h('div',{class:'cols'},h('div',{class:'panel'},h('h2',null,'Shutter angle'),h('div',{class:'row'},num('fps','Frame rate',24),num('ang','Shutter angle °',180)),h('dl',{class:'kv',id:'sa'}),h('div',{class:'hr'}),h('h2',null,'Flicker-safe speeds'),h('dl',{class:'kv',id:'fl'})),
+      h('div',{class:'panel'},h('h2',null,'ND filters'),h('div',{class:'row'},num('nds','Stops of ND',3),num('bs','Base shutter (1/x)',50)),h('dl',{class:'kv',id:'nd'}),h('div',{class:'small muted',style:'margin-top:10px'},'ND 0.3 = 1 stop · ND 0.9 = 3 stops · ND 1.8 = 6 stops · ND 3.0 = 10 stops'))));
+    const run=()=>{ const fps=+$('#fps').value, a=+$('#ang').value; const t=a/360/fps;
+      $('#sa').innerHTML='<dt>Shutter speed</dt><dd>'+shut(t)+'</dd><dt>180° is</dt><dd>1/'+(fps*2)+'</dd><dt>90° is</dt><dd>1/'+(fps*4)+'</dd><dt>360° is</dt><dd>1/'+fps+'</dd>';
+      $('#fl').innerHTML='<dt>50 Hz mains</dt><dd>1/50 · 1/100 · 1/25</dd><dt>60 Hz mains</dt><dd>1/60 · 1/120 · 1/30</dd><dt>Nearest to '+a+'° at '+fps+'fps</dt><dd>'+['1/50','1/60','1/100','1/120'].map(x=>x+' ('+f2(360*fps/ +x.slice(2),0)+'°)').join(' · ')+'</dd>';
+      const st=+$('#nds').value, f=Math.pow(2,st); $('#nd').innerHTML='<dt>Light reduction</dt><dd>'+f2(f,0)+'× (ND'+f2(f,0)+')</dd><dt>Optical density</dt><dd>'+f2(st*.3,2)+'</dd><dt>New shutter</dt><dd>'+shut(1/(+$('#bs').value)*f)+' for the same exposure</dd><dt>Or open aperture by</dt><dd>'+f2(st,1)+' stops</dd>'; };
+    el.addEventListener('input',run); run(); }}
+  ]);
+});
+</script></body></html>

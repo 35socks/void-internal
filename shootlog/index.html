@@ -1,0 +1,22 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Shoot Log</title><link rel="stylesheet" href="../assets/suite.css"></head>
+<body data-app="shootlog"><div id="app"><div id="root"></div></div>
+<script src="../assets/suite.js"></script>
+<script>
+SU.ready(()=>{
+  SU.crud(SU.$('#root'),{key:'shootlog',noun:'shoot',csv:'shoot-log',filter:'type',sort:'date',
+    fields:[
+      {k:'date',l:'Date',t:'date',def:SU.today},
+      {k:'title',l:'Title',req:true},
+      {k:'type',l:'Type',t:'select',opts:['Photo','Film','Both'],def:'Photo'},
+      {k:'loc',l:'Location'},
+      {k:'camera',l:'Camera / lens'},
+      {k:'stock',l:'Film stock / profile'},
+      {k:'settings',l:'Settings'},
+      {k:'keepers',l:'Keepers',t:'num'},
+      {k:'notes',l:'Notes',t:'area',list:false}
+    ],
+    summary:items=>items.reduce((a,i)=>a+(+i.keepers||0),0)+' keepers total'
+  });
+});
+</script></body></html>

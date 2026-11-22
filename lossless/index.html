@@ -1,53 +1,39 @@
 <!DOCTYPE html>
-<html lang="en">
-<head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>Is it really lossless?</title>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Lossless Checker</title><link rel="stylesheet" href="../assets/suite.css">
 <style>
-:root{--bg:#eef0f6;--panel:#fff;--fg:#14183a;--mut:#5d6385;--line:#d5d9ea;--acc:#3b2bff;--ok:#0f7b5f;--warn:#b45f06;--bad:#d1243b;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
-@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#0d1020;--panel:#151a33;--fg:#e9ecff;--mut:#9aa1cc;--line:#262d54;--acc:#8c9cff;--ok:#43d6a6;--warn:#f5b25a;--bad:#ff6b80;color-scheme:dark}}
-:root[data-theme="dark"]{--bg:#0d1020;--panel:#151a33;--fg:#e9ecff;--mut:#9aa1cc;--line:#262d54;--acc:#8c9cff;--ok:#43d6a6;--warn:#f5b25a;--bad:#ff6b80;color-scheme:dark}
-html{scroll-padding-top:env(safe-area-inset-top,0px)}
-*,*::before,*::after{box-sizing:border-box}
-body{margin:0;background:var(--bg);color:var(--fg);font:15px/1.55 system-ui,-apple-system,"Segoe UI",sans-serif}
-main{max-width:940px;margin:0 auto;padding:30px 18px 64px}
-h1{font:700 clamp(30px,6vw,46px)/1.05 ui-serif,Georgia,"Times New Roman",serif;margin:0 0 10px;letter-spacing:-.02em}
-.lede{color:var(--mut);margin:0 0 24px;max-width:62ch}
-#drop{display:block;border:2px dashed var(--line);border-radius:6px;padding:40px 18px;text-align:center;background:var(--panel);cursor:pointer}
-#drop.on,#drop:hover,#drop:focus-within{border-color:var(--acc);background:color-mix(in srgb,var(--acc) 7%,var(--panel))}
-#drop strong{font:600 19px ui-serif,Georgia,serif}
-#drop span{display:block;color:var(--mut);margin-top:4px}
-.card{background:var(--panel);border:1px solid var(--line);border-radius:6px;padding:18px 20px;margin-top:18px}
-.card h2{font:600 17px ui-serif,Georgia,serif;margin:0 0 10px}
-.verdict{border-left:8px solid var(--mut)}
+#app{--mut:var(--dim);--fg:var(--paper);--acc:var(--paper);--ok:#9ae6b4;--warn:#f6d57a;--bad:#ff8a8a}
+.lede{color:var(--dim);margin:0 0 22px;max-width:62ch}
+#drop{display:block;border:1px dashed var(--line-2);padding:40px 18px;text-align:center;cursor:pointer;transition:all .25s var(--ease)}
+#drop.on,#drop:hover,#drop:focus-within{border-color:var(--paper)}
+#drop strong{font-family:var(--pix);font-weight:400;font-size:18px;letter-spacing:.06em}
+#drop span{display:block;color:var(--dim);margin-top:6px}
+#out .card{display:block;min-height:0;cursor:default;background:var(--panel);border:1px solid var(--line);padding:18px 20px;margin-top:16px;color:var(--paper)}
+#out .card:hover{background:var(--panel)}
+#out .card h2{font-size:10.5px;letter-spacing:.24em;text-transform:uppercase;color:var(--dim);margin-bottom:12px;font-weight:600}
+.verdict{border-left:6px solid var(--dim)}
 .verdict.ok{border-left-color:var(--ok)}.verdict.warn{border-left-color:var(--warn)}.verdict.bad{border-left-color:var(--bad)}
-.verdict h3{font:700 clamp(24px,4.5vw,34px)/1.15 ui-serif,Georgia,serif;margin:0 0 6px}
-.ok h3{color:var(--ok)}.warn h3{color:var(--warn)}.bad h3{color:var(--bad)}
-.fname{color:var(--mut);margin:0 0 8px;word-break:break-all}
+.verdict h3{font-family:var(--pix);font-weight:400;font-size:clamp(22px,4vw,30px);line-height:1.15;margin:0 0 6px;letter-spacing:.04em}
+.verdict.ok h3{color:var(--ok)}.verdict.warn h3{color:var(--warn)}.verdict.bad h3{color:var(--bad)}
+.fname{color:var(--dim);margin:0 0 8px;word-break:break-all}
 .find{list-style:none;margin:10px 0 0;padding:0}
-.find li{padding:8px 0 8px 26px;border-top:1px solid var(--line);position:relative}
+.find li{padding:8px 0 8px 26px;border-top:1px solid var(--line);position:relative;color:var(--paper)}
 .find li::before{position:absolute;left:2px;font-weight:700}
-.find .ok::before{content:"✓";color:var(--ok)}.find .warn::before{content:"!";color:var(--warn)}.find .bad::before{content:"✗";color:var(--bad)}
+.find .ok::before{content:"âœ“";color:var(--ok)}.find .warn::before{content:"!";color:var(--warn)}.find .bad::before{content:"âœ—";color:var(--bad)}
 .scroll{overflow-x:auto}
-table{width:100%;border-collapse:collapse;font-size:14px;font-variant-numeric:tabular-nums}
-td{padding:6px 10px 6px 0;border-top:1px solid var(--line);vertical-align:top}
-td:first-child{color:var(--mut);white-space:nowrap;width:1%;padding-right:20px}
-td:last-child{overflow-wrap:anywhere;white-space:pre-wrap}
-canvas{width:100%;display:block;border-radius:4px;background:#0b0b10}
-.legend{color:var(--mut);font-size:13px;margin:8px 0 0}
-.art{float:right;width:132px;height:132px;object-fit:cover;border-radius:4px;border:1px solid var(--line);margin:0 0 10px 14px}
-footer{margin-top:26px;color:var(--mut);font-size:13px;max-width:70ch}
-</style>
-</head>
-<body>
-<main>
-<h1>Is it really lossless?</h1>
+#out td:first-child{color:var(--dim);white-space:nowrap;width:1%;padding-right:20px}
+#out td:last-child{overflow-wrap:anywhere;white-space:pre-wrap;font-family:var(--mono);font-size:11.5px}
+#out canvas{width:100%;display:block;background:#000}
+.legend{color:var(--dim);font-size:12px;margin:8px 0 0}
+.art{float:right;width:132px;height:132px;object-fit:cover;border:1px solid var(--line);margin:0 0 10px 14px}
+.foot-note{margin-top:22px;color:var(--dim);font-size:12px;max-width:70ch}
+</style></head>
+<body data-app="lossless"><div id="app">
 <p class="lede">Drop in an audio file. It stays on your device: nothing is uploaded. The page looks for the frequency cut-off that MP3 and AAC encoders leave behind, and reads every metadata tag it can find.</p>
 <label id="drop"><input id="file" type="file" accept="audio/*,.flac,.wav,.aif,.aiff,.m4a,.mp3,.ogg,.opus,.wv,.ape" hidden><strong>Drop an audio file here</strong><span>or click to choose. FLAC, WAV, AIFF, ALAC, MP3, AAC, Ogg and more.</span></label>
 <div id="out"></div>
-<footer>These are heuristics. A clean result is strong evidence but not proof, and a low-pass filter can also come from mastering. Decoding happens in your browser, so ALAC and rarer formats depend on what it supports.</footer>
-</main>
+<p class="foot-note">These are heuristics. A clean result is strong evidence but not proof, and a low-pass filter can also come from mastering. Decoding happens in your browser, so ALAC and rarer formats depend on what it supports.</p>
+</div>
+<script src="../assets/suite.js"></script>
 <script>
 'use strict';
 const $=s=>document.querySelector(s),out=$('#out');
@@ -198,10 +184,10 @@ async function analyze(buf,info){
 /* ---------- drawing ---------- */
 function drawSpec(A){const cv=$('#spec'),W=cv.width=1000,Hh=cv.height=300,g=cv.getContext('2d'),L=42,B=24,pw=W-L-8,ph=Hh-B-8,nyq=A.sr/2;
  const X=f=>L+f/nyq*pw,Y=d=>8+(1-(Math.max(-140,Math.min(-20,d))+140)/120)*ph;
- g.fillStyle='#0b0b10';g.fillRect(0,0,W,Hh);g.font='11px system-ui,sans-serif';g.fillStyle='#8a90b8';g.strokeStyle='#23263d';
+ g.fillStyle='#000000';g.fillRect(0,0,W,Hh);g.font='11px system-ui,sans-serif';g.fillStyle='#9a9a9a';g.strokeStyle='#262626';
  for(let d=-20;d>=-140;d-=20){g.beginPath();g.moveTo(L,Y(d));g.lineTo(W-8,Y(d));g.stroke();g.fillText(d,6,Y(d)+4)}
  const stp=nyq>30000?4000:2000;for(let f=0;f<=nyq;f+=stp){g.beginPath();g.moveTo(X(f),8);g.lineTo(X(f),Hh-B);g.stroke();g.fillText(f/1000+'k',X(f)-8,Hh-8)}
- g.strokeStyle='#8c9cff';g.lineWidth=1.4;g.beginPath();
+ g.strokeStyle='#ffffff';g.lineWidth=1.4;g.beginPath();
  for(let x=0;x<pw;x++){const k0=Math.floor(x/pw*A.S.length),k1=Math.max(k0+1,Math.floor((x+1)/pw*A.S.length));let mx=-300;for(let k=k0;k<k1;k++)mx=Math.max(mx,A.S[k]);x?g.lineTo(L+x,Y(mx)):g.moveTo(L,Y(mx))}
  g.stroke();
  if(A.cut){g.strokeStyle=g.fillStyle='#ff6b80';g.setLineDash([5,4]);g.beginPath();g.moveTo(X(A.cut),8);g.lineTo(X(A.cut),Hh-B);g.stroke();g.setLineDash([]);g.fillText('cut-off '+(A.cut/1000).toFixed(1)+' kHz',Math.min(X(A.cut)+6,W-110),22)}}
@@ -258,5 +244,4 @@ async function run(file){
 addEventListener('drop',ev=>{const f=ev.dataTransfer&&ev.dataTransfer.files[0];if(f)run(f)});
 $('#file').addEventListener('change',e=>{const f=e.target.files[0];if(f)run(f)});
 </script>
-</body>
-</html>
+</body></html>

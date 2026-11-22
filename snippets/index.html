@@ -1,0 +1,16 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Snippets</title><link rel="stylesheet" href="../assets/suite.css"></head>
+<body data-app="snippets"><div id="app"><div id="root"></div></div>
+<script src="../assets/suite.js"></script>
+<script>
+SU.ready(()=>{
+  SU.crud(SU.$('#root'),{key:'snippets',noun:'snippet',csv:'snippets',filter:'lang',sort:'title',
+    fields:[
+      {k:'title',l:'Title',req:true},
+      {k:'lang',l:'Type',t:'select',opts:['Text','Shell','Python','JS','HTML/CSS','YAML','Config','Email','Caption','Other'],def:'Text'},
+      {k:'code',l:'Content',t:'area',mono:true,req:true,list:false}
+    ],
+    rowAction:it=>SU.h('button',{class:'btn sm',onclick:e=>{ e.stopPropagation(); SU.copy(it.code); }},'Copy')
+  });
+});
+</script></body></html>

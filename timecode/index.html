@@ -1,0 +1,33 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Timecode Calc</title><link rel="stylesheet" href="../assets/suite.css"></head>
+<body data-app="timecode"><div id="app"><div class="cols">
+<div class="panel corners"><h2>Timecode maths</h2>
+<label class="f"><span>Frame rate</span><select id="fps"></select></label>
+<div class="row"><label class="f grow"><span>A</span><input type="text" id="a" class="mono" value="00:01:00:00"></label>
+<label class="f" style="width:90px"><span>Op</span><select id="op"><option value="+">+</option><option value="-">−</option></select></label>
+<label class="f grow"><span>B</span><input type="text" id="b" class="mono" value="00:00:30:12"></label></div>
+<div class="center" style="margin:16px 0"><div class="big mono" id="res">—</div><div class="small muted" id="resinfo"></div></div></div>
+<div class="panel"><h2>Convert between frame rates</h2>
+<div class="row"><label class="f grow"><span>From</span><select id="f1"></select></label><label class="f grow"><span>To</span><select id="f2"></select></label></div>
+<label class="f"><span>Timecode at source rate</span><input type="text" id="c" class="mono" value="00:10:00:00"></label>
+<dl class="kv" id="conv"></dl><div class="hr"></div>
+<h2>Frames ↔ time</h2><div class="row"><label class="f grow"><span>Frames</span><input type="number" id="fr" value="1440"></label><label class="f grow"><span>Seconds</span><input type="number" id="sec" step="0.001"></label></div></div></div></div>
+<script src="../assets/suite.js"></script>
+<script>
+SU.ready(()=>{
+  const $=SU.$, R=[{n:'23.976',nom:24,real:24000/1001,df:false},{n:'24',nom:24,real:24,df:false},{n:'25',nom:25,real:25,df:false},{n:'29.97 DF',nom:30,real:30000/1001,df:true},{n:'29.97 NDF',nom:30,real:30000/1001,df:false},{n:'30',nom:30,real:30,df:false},{n:'50',nom:50,real:50,df:false},{n:'59.94 DF',nom:60,real:60000/1001,df:true},{n:'59.94 NDF',nom:60,real:60000/1001,df:false},{n:'60',nom:60,real:60,df:false}];
+  ['#fps','#f1','#f2'].forEach(s=>R.forEach((r,i)=>$(s).append(SU.h('option',{value:i},r.n+' fps'))));
+  $('#fps').value=1; $('#f1').value=1; $('#f2').value=2;
+  const parse=(t,r)=>{ const p=t.trim().split(/[:;.]/).map(Number); if(p.length!==4||p.some(x=>isNaN(x)||x<0)) return null; const [h,m,s,f]=p; let tot=((h*60+m)*60+s)*r.nom+f; if(r.df){ const d=r.nom===60?4:2, tm=h*60+m; tot-=d*(tm-Math.floor(tm/10)); } return tot; };
+  const fmt=(n,r)=>{ const neg=n<0; n=Math.abs(n); let drop=0; if(r.df){ drop=r.nom===60?4:2; const p10=r.nom*600-drop*9, p1=r.nom*60-drop, d=Math.floor(n/p10), m=n%p10; n+=drop*9*d+(m>drop?drop*Math.floor((m-drop)/p1):0); }
+    const f=n%r.nom, s=Math.floor(n/r.nom)%60, mi=Math.floor(n/r.nom/60)%60, hh=Math.floor(n/r.nom/3600); const P=SU.pad; return (neg?'-':'')+P(hh)+':'+P(mi)+':'+P(s)+(r.df?';':':')+P(f); };
+  function calc(){ const r=R[$('#fps').value], a=parse($('#a').value,r), b=parse($('#b').value,r);
+    if(a==null||b==null){ $('#res').textContent='—'; $('#resinfo').textContent='Use HH:MM:SS:FF'; return; }
+    const t=$('#op').value==='+'?a+b:a-b; $('#res').textContent=fmt(t,r); $('#resinfo').textContent=t+' frames · '+(t/r.real).toFixed(3)+' s real time'; }
+  function conv(){ const r1=R[$('#f1').value], r2=R[$('#f2').value], n=parse($('#c').value,r1); if(n==null){ $('#conv').innerHTML='<dt>Result</dt><dd>Invalid timecode</dd>'; return; }
+    const s=n/r1.real, n2=Math.round(s*r2.real); $('#conv').innerHTML='<dt>Frames at source</dt><dd>'+n+'</dd><dt>Real duration</dt><dd>'+s.toFixed(3)+' s</dd><dt>Same duration at target</dt><dd>'+fmt(n2,r2)+' ('+n2+' frames)</dd><dt>If frames are kept 1:1</dt><dd>'+fmt(n,r2)+' → runs '+(n/r2.real).toFixed(3)+' s ('+((r1.real/r2.real)*100).toFixed(2)+'% speed)</dd>'; }
+  function fr(src){ const r=R[$('#fps').value]; if(src==='fr') $('#sec').value=($('#fr').value/r.real).toFixed(3); else $('#fr').value=Math.round($('#sec').value*r.real); }
+  ['#fps','#a','#b','#op'].forEach(s=>$(s).addEventListener('input',()=>{ calc(); fr('fr'); })); ['#f1','#f2','#c'].forEach(s=>$(s).addEventListener('input',conv));
+  $('#fr').oninput=()=>fr('fr'); $('#sec').oninput=()=>fr('sec'); calc(); conv(); fr('fr');
+});
+</script></body></html>

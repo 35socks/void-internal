@@ -1,0 +1,20 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Contacts</title><link rel="stylesheet" href="../assets/suite.css"></head>
+<body data-app="contacts"><div id="app"><div id="root"></div></div>
+<script src="../assets/suite.js"></script>
+<script>
+SU.ready(()=>{
+  SU.crud(SU.$('#root'),{key:'contacts',noun:'contact',csv:'contacts',filter:'group',sort:'name',
+    fields:[
+      {k:'name',l:'Name',req:true},
+      {k:'group',l:'Group',t:'select',opts:['Music','Film','Photo','Venue','Friend','Work','Other'],def:'Music'},
+      {k:'role',l:'Role'},
+      {k:'email',l:'Email',t:'email'},
+      {k:'phone',l:'Phone'},
+      {k:'link',l:'Link',t:'url'},
+      {k:'last',l:'Last contact',t:'date'},
+      {k:'notes',l:'Notes',t:'area',list:false}
+    ]
+  });
+});
+</script></body></html>

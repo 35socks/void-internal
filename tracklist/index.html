@@ -1,0 +1,21 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Release Sheet</title><link rel="stylesheet" href="../assets/suite.css"></head>
+<body data-app="tracklist"><div id="app"><div id="root"></div></div>
+<script src="../assets/suite.js"></script>
+<script>
+SU.ready(()=>{
+  SU.crud(SU.$('#root'),{key:'tracklist',noun:'track',csv:'tracklist',order:true,filter:'status',
+    fields:[
+      {k:'title',l:'Title',req:true},
+      {k:'artist',l:'Artist'},
+      {k:'bpm',l:'BPM',t:'num'},
+      {k:'key',l:'Key',ph:'e.g. F#m'},
+      {k:'length',l:'Length',ph:'m:ss'},
+      {k:'isrc',l:'ISRC'},
+      {k:'status',l:'Status',t:'select',opts:['Idea','Demo','Recording','Mixing','Mastered','Released'],def:'Idea'},
+      {k:'notes',l:'Notes',t:'area',list:false}
+    ],
+    summary:items=>'runtime '+SU.dur(items.reduce((a,t)=>a+SU.parseDur(t.length),0))
+  });
+});
+</script></body></html>

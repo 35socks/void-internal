@@ -1,0 +1,70 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Settings</title><link rel="stylesheet" href="../assets/suite.css"></head>
+<body data-app="settings"><div id="app"><div id="root"></div></div>
+<script src="../assets/suite.js"></script>
+<script>
+SU.ready(()=>{
+  const $=SU.$, h=SU.h, root=$('#root'); let cfg=SU.getCfg()||{};
+  const panel=(t,...k)=>{ const p=h('div',{class:'panel'},h('h2',null,t),...k); root.append(p); return p; };
+
+  /* profile */
+  const name=h('input',{type:'text',value:cfg.name||''}), mark=h('input',{type:'text',value:cfg.wordmark||'SUITE',maxlength:18});
+  const fx=h('input',{type:'checkbox'}), boot=h('input',{type:'checkbox'}); fx.checked=cfg.fx!==false; boot.checked=cfg.boot!==false;
+  panel('Profile & look',
+    h('div',{class:'row'},h('label',{class:'f grow'},h('span',null,'Your name'),name),h('label',{class:'f grow'},h('span',null,'Wordmark'),mark)),
+    h('label',{class:'check',style:'margin-bottom:8px'},fx,'Background effects (dot grid, noise, scanlines)'),
+    h('label',{class:'check',style:'margin-bottom:14px'},boot,'Boot animation once per session'),
+    h('button',{class:'btn primary',onclick:()=>{ SU.setCfg(Object.assign({},SU.getCfg(),{name:name.value.trim(),wordmark:(mark.value.trim()||'SUITE').toUpperCase(),fx:fx.checked,boot:boot.checked})); SU.toast('Saved — reload to see the wordmark'); }},'Save'));
+
+  /* passcode */
+  const p1=h('input',{type:'password',placeholder:'New passcode',autocomplete:'new-password'}), p0=h('input',{type:'password',placeholder:'Current passcode',autocomplete:'current-password'});
+  panel('Passcode',
+    h('p',{class:'small muted',style:'margin-bottom:12px;line-height:1.6'},'A local lock for this browser. It hides the UI but your data is not encrypted at rest and anyone with the site files can read the code. Use the Vault app for real secrets.'),
+    cfg.hash?h('label',{class:'f'},h('span',null,'Current'),p0):null, h('label',{class:'f'},h('span',null,cfg.hash?'New (leave empty to remove)':'Set a passcode'),p1),
+    h('button',{class:'btn primary',onclick:async()=>{
+      const c=Object.assign({},SU.getCfg());
+      if(c.hash&&await SU.hashPass(p0.value,c.salt)!==c.hash){ SU.toast('Current passcode is wrong'); return; }
+      if(p1.value){ c.salt=SU.newSalt(); c.hash=await SU.hashPass(p1.value,c.salt); } else { delete c.salt; delete c.hash; }
+      SU.setCfg(c); SU.toast(p1.value?'Passcode updated':'Passcode removed'); setTimeout(()=>location.reload(),600); }},'Update passcode'));
+
+  /* S3 */
+  const s=SU.s3.conf()||{};
+  const f={bucket:h('input',{type:'text',value:s.bucket||'',placeholder:'my-bucket'}),region:h('input',{type:'text',value:s.region||'eu-west-2'}),ak:h('input',{type:'text',value:s.ak||'',placeholder:'AKIA…',autocomplete:'off',spellcheck:'false'}),sk:h('input',{type:'password',value:s.sk||'',autocomplete:'new-password'})};
+  const auto=h('input',{type:'checkbox'}); auto.checked=!!s.auto; const out=h('div',{class:'small',style:'margin-top:12px;min-height:16px'});
+  const say=(t,c)=>{ out.className='small '+(c||'muted'); out.textContent=t; };
+  const getConf=()=>({bucket:f.bucket.value.trim(),region:f.region.value.trim(),ak:f.ak.value.trim(),sk:f.sk.value.trim(),auto:auto.checked});
+  const meta=SU.store.get('syncmeta',{});
+  const cors=JSON.stringify([{AllowedHeaders:['*'],AllowedMethods:['GET','PUT','DELETE','HEAD'],AllowedOrigins:[location.origin.startsWith('http')?location.origin:'https://YOUR-USERNAME.github.io'],ExposeHeaders:['ETag'],MaxAgeSeconds:3000}],null,2);
+  const policy=()=>JSON.stringify({Version:'2012-10-17',Statement:[{Effect:'Allow',Action:'s3:ListBucket',Resource:'arn:aws:s3:::'+(f.bucket.value.trim()||'YOUR-BUCKET'),Condition:{StringLike:{'s3:prefix':['suite/*','demos/*','media/*']}}},{Effect:'Allow',Action:['s3:GetObject','s3:PutObject','s3:DeleteObject'],Resource:['suite','demos','media'].map(p=>'arn:aws:s3:::'+(f.bucket.value.trim()||'YOUR-BUCKET')+'/'+p+'/*')}]},null,2);
+  const btn=(l,fn,c)=>h('button',{class:'btn '+(c||'ghost'),onclick:async e=>{ e.target.disabled=true; try{ await fn(); }catch(er){ say(er.message,'bad'); } e.target.disabled=false; }},l);
+  panel('Cloud storage (AWS S3)',
+    h('p',{class:'small muted',style:'margin-bottom:14px;line-height:1.7'},'Backs up all suite data and powers the Demo Vault. Keys are saved only in this browser (localStorage) and are excluded from backups. Create a dedicated IAM user for this — never reuse a key that has been in a public repo.'),
+    h('div',{class:'row'},h('label',{class:'f grow'},h('span',null,'Bucket'),f.bucket),h('label',{class:'f grow'},h('span',null,'Region'),f.region)),
+    h('div',{class:'row'},h('label',{class:'f grow'},h('span',null,'Access key ID'),f.ak),h('label',{class:'f grow'},h('span',null,'Secret access key'),f.sk)),
+    h('label',{class:'check',style:'margin-bottom:14px'},auto,'Auto-sync: push changes after edits, pull newer cloud data on load'),
+    h('div',{class:'row'},
+      btn('Save & test',async()=>{ SU.store.set('s3',getConf()); say('Testing…'); await SU.s3.test(); say('Connected ✓','ok'); },'primary'),
+      btn('Push now',async()=>{ if(!SU.s3.ok()) SU.store.set('s3',getConf()); say('Uploading…'); const sn=await SU.sync.push(); if(sn) say('Pushed '+new Date(sn.t).toLocaleString(),'ok'); else say('Cloud is newer — pull, or force push','warn'); }),
+      btn('Pull now',async()=>{ if(!(await SU.confirm('Replace local data with the cloud backup?'))) return; say('Downloading…'); await SU.sync.pull(); say('Restored — reloading…','ok'); setTimeout(()=>location.reload(),700); }),
+      btn('Force push',async()=>{ if(!(await SU.confirm('Overwrite the cloud backup with this browser\'s data?'))) return; const sn=await SU.sync.push(true); say('Pushed '+new Date(sn.t).toLocaleString(),'ok'); }),
+      btn('Disconnect',async()=>{ SU.store.del('s3'); say('Credentials removed from this browser','ok'); setTimeout(()=>location.reload(),600); },'ghost danger')),
+    out, h('div',{class:'small muted',style:'margin-top:8px'},meta.t?'Last sync: '+new Date(meta.t).toLocaleString()+(meta.dirty?' · unsynced local changes':''):'Never synced'),
+    h('div',{class:'hr'}),
+    h('h2',null,'One-time AWS setup'),
+    h('p',{class:'small muted',style:'margin-bottom:10px;line-height:1.7'},'1) Bucket → Permissions → CORS: paste this (origin is where the suite is hosted).'),
+    h('pre',{class:'out',style:'max-height:200px'},cors), h('button',{class:'btn sm ghost',style:'margin:8px 0 14px',onclick:()=>SU.copy(cors)},'Copy CORS'),
+    h('p',{class:'small muted',style:'margin-bottom:10px;line-height:1.7'},'2) IAM → new user → attach this policy (limited to suite/, demos/ and media/ in that bucket). Then create an access key for it.'),
+    (()=>{ const pre=h('pre',{class:'out',style:'max-height:260px'},policy()); f.bucket.addEventListener('input',()=>pre.textContent=policy()); return pre; })(),
+    h('button',{class:'btn sm ghost',style:'margin-top:8px',onclick:()=>SU.copy(policy())},'Copy policy'));
+
+  /* local backup */
+  panel('Local backup',
+    h('p',{class:'small muted',style:'margin-bottom:12px'},'Everything lives in this browser. Export regularly, or use cloud sync above.'),
+    h('div',{class:'row'},
+      btn('Export JSON',async()=>{ const sn=await SU.sync.snapshot(); SU.download('suite-backup-'+SU.today()+'.json',JSON.stringify(sn),'application/json'); },'primary'),
+      btn('Import JSON',async()=>{ const file=await SU.pickFile('.json'); if(!file) return; const sn=JSON.parse(await file.text()); if(!sn.data) throw new Error('Not a suite backup'); if(!(await SU.confirm('Replace all local data with this backup?'))) return;
+        SU.$$('x').length; Object.keys(localStorage).filter(k=>k.startsWith('su:')&&!['su:s3','su:syncmeta','su:recent'].includes(k)).forEach(k=>localStorage.removeItem(k)); Object.keys(sn.data).forEach(k=>SU.store.set(k,sn.data[k])); for(const k of Object.keys(sn.idb||{})) await SU.idb.set(k,sn.idb[k]); say('Imported — reloading…','ok'); setTimeout(()=>location.reload(),700); }),
+      btn('Wipe all local data',async()=>{ if(await SU.confirm('Delete EVERYTHING stored in this browser? Export a backup first.')){ Object.keys(localStorage).filter(k=>k.startsWith('su:')).forEach(k=>localStorage.removeItem(k)); sessionStorage.clear(); indexedDB.deleteDatabase('su'); location.href=SU.appUrl('home'); } },'ghost danger')),
+    h('div',{class:'small muted',style:'margin-top:12px'},SU.store.keys().length+' data keys · ~'+SU.bytes(Object.keys(localStorage).filter(k=>k.startsWith('su:')).reduce((a,k)=>a+k.length+localStorage.getItem(k).length,0)*2)+' in localStorage'));
+});
+</script></body></html>

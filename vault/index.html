@@ -1,0 +1,60 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Vault</title><link rel="stylesheet" href="../assets/suite.css"></head>
+<body data-app="vault"><div id="app"><div id="root"></div></div>
+<script src="../assets/suite.js"></script>
+<script>
+SU.ready(()=>{
+  const h=SU.h,$=SU.$,root=$('#root'), enc=new TextEncoder(), dec=new TextDecoder();
+  const b64=b=>btoa(String.fromCharCode(...new Uint8Array(b))), unb=s=>Uint8Array.from(atob(s),c=>c.charCodeAt(0));
+  if(!window.crypto||!crypto.subtle){ root.append(h('div',{class:'panel'},'The Vault needs a secure context (https or localhost).')); return; }
+  const ITER=310000; let key=null, salt=null, items=[], lockT=null, q='';
+  const derive=async(pw,s)=>{ const k=await crypto.subtle.importKey('raw',enc.encode(pw),'PBKDF2',false,['deriveKey']); return crypto.subtle.deriveKey({name:'PBKDF2',salt:s,iterations:ITER,hash:'SHA-256'},k,{name:'AES-GCM',length:256},false,['encrypt','decrypt']); };
+  async function persist(){ const iv=crypto.getRandomValues(new Uint8Array(12)), ct=await crypto.subtle.encrypt({name:'AES-GCM',iv},key,enc.encode(JSON.stringify(items))); SU.store.set('vault',{v:1,iter:ITER,salt:b64(salt),iv:b64(iv),data:b64(ct)}); }
+  function arm(){ clearTimeout(lockT); lockT=setTimeout(lock,5*60*1000); }
+  function lock(){ key=null; items=[]; draw(); }
+  addEventListener('click',()=>{ if(key) arm(); }); addEventListener('keydown',()=>{ if(key) arm(); });
+  const pwgen=(n=20)=>{ const s='abcdefghijkmnopqrstuvwxyzABCDEFGHJKLMNPQRSTUVWXYZ23456789!@#$%^&*-_=+?', a=new Uint32Array(n); crypto.getRandomValues(a); return [...a].map(x=>s[x%s.length]).join(''); };
+
+  function draw(){
+    root.innerHTML=''; const rec=SU.store.get('vault',null);
+    if(!key){
+      const p1=h('input',{type:'password',autocomplete:'off'}), p2=h('input',{type:'password',autocomplete:'off'}), msg=h('div',{class:'small bad',style:'margin-top:10px;min-height:16px'});
+      if(!rec){
+        root.append(h('div',{class:'panel corners',style:'max-width:460px'},h('h2',null,'Create your vault'),h('p',{class:'small muted',style:'margin-bottom:14px;line-height:1.7'},'Choose a master password. Everything is encrypted in your browser with AES-256-GCM (PBKDF2, '+ITER.toLocaleString()+' rounds). There is NO recovery — if you forget it, the data is gone.'),
+          h('label',{class:'f'},h('span',null,'Master password'),p1),h('label',{class:'f'},h('span',null,'Repeat'),p2),
+          h('button',{class:'btn primary',onclick:async()=>{ if(p1.value.length<10){ msg.textContent='Use at least 10 characters'; return; } if(p1.value!==p2.value){ msg.textContent='Passwords do not match'; return; } salt=crypto.getRandomValues(new Uint8Array(16)); key=await derive(p1.value,salt); items=[]; await persist(); arm(); draw(); }},'Create vault'),msg));
+      } else {
+        const go=async()=>{ msg.textContent='Unlocking…'; try{ const s=unb(rec.salt); const k=await derive(p1.value,s); const pt=await crypto.subtle.decrypt({name:'AES-GCM',iv:unb(rec.iv)},k,unb(rec.data)); salt=s; key=k; items=JSON.parse(dec.decode(pt)); arm(); draw(); }catch{ msg.textContent='Wrong password'; p1.value=''; p1.focus(); } };
+        p1.addEventListener('keydown',e=>{ if(e.key==='Enter') go(); });
+        root.append(h('div',{class:'panel corners',style:'max-width:460px'},h('h2',null,'Vault locked'),h('label',{class:'f'},h('span',null,'Master password'),p1),h('button',{class:'btn primary',onclick:go},'Unlock'),msg)); setTimeout(()=>p1.focus(),50);
+      }
+      return;
+    }
+    const search=h('input',{type:'search',placeholder:'Search…',class:'grow',value:q,oninput:()=>{ q=search.value.toLowerCase(); list(); }});
+    const L=h('div',{class:'tablewrap'});
+    root.append(h('div',{class:'row',style:'margin-bottom:12px'},search,h('button',{class:'btn primary',onclick:()=>edit()},'+ Add'),h('button',{class:'btn ghost',onclick:changePw},'Change master password'),h('button',{class:'btn ghost',onclick:lock},'Lock now')),L,h('div',{class:'small muted',style:'margin-top:10px'},'Auto-locks after 5 minutes idle. Encrypted data is part of your backups; the master password never leaves this page.'));
+    function list(){ L.innerHTML=''; const rows=items.filter(i=>!q||(i.name+' '+(i.user||'')+' '+(i.url||'')).toLowerCase().includes(q)).sort((a,b)=>a.name.localeCompare(b.name));
+      if(!rows.length){ L.append(h('div',{class:'empty'},items.length?'No matches':'Vault is empty')); return; }
+      const t=h('table'); t.append(h('thead',null,h('tr',null,['Name','Username','URL',''].map(x=>h('th',{style:'cursor:default'},x))))); const tb=h('tbody');
+      rows.forEach(i=>tb.append(h('tr',{onclick:()=>edit(i)},h('td',null,i.name),h('td',{class:'mono small'},i.user||''),h('td',{class:'small'},i.url||''),h('td',{class:'act'},
+        h('button',{class:'btn sm',onclick:e=>{ e.stopPropagation(); SU.copy(i.secret||''); setTimeout(()=>{ navigator.clipboard&&navigator.clipboard.writeText('').catch(()=>{}); },20000); }},'Copy secret'),' ',
+        i.user?h('button',{class:'btn sm ghost',onclick:e=>{ e.stopPropagation(); SU.copy(i.user); }},'User'):null)))); t.append(tb); L.append(t); }
+    list();
+  }
+  async function edit(it){
+    const secret=h('input',{type:'text',value:it?it.secret:'',class:'mono',autocomplete:'off',spellcheck:'false'});
+    const f=SU.buildForm([{k:'name',l:'Name',req:true},{k:'user',l:'Username / email'},{k:'url',l:'URL'},{k:'notes',l:'Notes',t:'area'}],it||{});
+    const body=h('div',null,f.el,h('label',{class:'f'},h('span',null,'Secret / password'),h('div',{class:'row'},h('div',{class:'grow'},secret),h('button',{class:'btn sm',type:'button',onclick:()=>{ secret.value=pwgen(); }},'Generate'))));
+    const acts=[{label:'Cancel',cls:'ghost',value:null}]; if(it) acts.unshift({label:'Delete',cls:'danger ghost',value:'del'}); acts.push({label:'Save',cls:'primary',value:'save',validate:()=>{ if(!f.get().name){ SU.toast('Name required'); return false; } }});
+    const r=await SU.modal(it?'Edit entry':'New entry',body,acts);
+    if(r==='del'){ if(await SU.confirm('Delete this entry?')){ items=items.filter(x=>x!==it); await persist(); draw(); } }
+    else if(r==='save'){ const d=Object.assign(f.get(),{secret:secret.value}); if(it) Object.assign(it,d); else items.push(Object.assign({id:SU.uid()},d)); await persist(); draw(); }
+  }
+  async function changePw(){
+    const a=h('input',{type:'password',placeholder:'New master password'}), b=h('input',{type:'password',placeholder:'Repeat'});
+    const r=await SU.modal('Change master password',h('div',null,h('label',{class:'f'},a),h('label',{class:'f'},b)),[{label:'Cancel',cls:'ghost',value:null},{label:'Change',cls:'primary',value:'ok',validate:()=>{ if(a.value.length<10||a.value!==b.value){ SU.toast('Min 10 chars and both must match'); return false; } }}]);
+    if(r==='ok'){ salt=crypto.getRandomValues(new Uint8Array(16)); key=await derive(a.value,salt); await persist(); SU.toast('Master password changed'); }
+  }
+  draw();
+});
+</script></body></html>

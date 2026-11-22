@@ -1,0 +1,19 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Setlist Builder</title><link rel="stylesheet" href="../assets/suite.css"></head>
+<body data-app="setlist"><div id="app"><div id="root"></div></div>
+<script src="../assets/suite.js"></script>
+<script>
+SU.ready(()=>{
+  SU.crud(SU.$('#root'),{key:'setlist',noun:'song',csv:'setlist',order:true,
+    fields:[
+      {k:'song',l:'Song',req:true},
+      {k:'key',l:'Key'},
+      {k:'bpm',l:'BPM',t:'num'},
+      {k:'length',l:'Length',ph:'m:ss',def:'3:00'},
+      {k:'gear',l:'Gear / patch'},
+      {k:'notes',l:'Notes',t:'area',list:false}
+    ],
+    summary:items=>{ const s=items.reduce((a,t)=>a+SU.parseDur(t.length),0); return 'set time '+SU.dur(s)+' · '+Math.round(s/60)+' min'; }
+  });
+});
+</script></body></html>

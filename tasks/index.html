@@ -1,0 +1,21 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Tasks</title><link rel="stylesheet" href="../assets/suite.css"></head>
+<body data-app="tasks"><div id="app"><div id="root"></div></div>
+<script src="../assets/suite.js"></script>
+<script>
+SU.ready(()=>{
+  const today=SU.today();
+  SU.crud(SU.$('#root'),{key:'tasks',noun:'task',csv:'tasks',filter:'area',sort:'due',
+    fields:[
+      {k:'task',l:'Task',req:true,fmt:(v,it)=>SU.h('span',{style:it.done?'text-decoration:line-through;color:var(--dim)':''},v)},
+      {k:'area',l:'Area',t:'select',opts:['Music','Film','Photo','Lab','Life','College'],def:'Life'},
+      {k:'priority',l:'Priority',t:'select',opts:['Low','Med','High'],def:'Med'},
+      {k:'due',l:'Due',t:'date',fmt:(v,it)=>v?SU.h('span',{class:(!it.done&&v<today)?'bad':''},v):''},
+      {k:'done',l:'Done',t:'check',list:false},
+      {k:'notes',l:'Notes',t:'area',list:false}
+    ],
+    rowAction:(it,refresh)=>SU.h('button',{class:'btn sm',onclick:e=>{ e.stopPropagation(); it.done=!it.done; refresh(); }},it.done?'Undo':'Done'),
+    summary:items=>items.filter(i=>!i.done).length+' open · '+items.filter(i=>!i.done&&i.due&&i.due<today).length+' overdue'
+  });
+});
+</script></body></html>

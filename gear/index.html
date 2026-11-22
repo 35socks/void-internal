@@ -1,0 +1,22 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Gear Locker</title><link rel="stylesheet" href="../assets/suite.css"></head>
+<body data-app="gear"><div id="app"><div id="root"></div></div>
+<script src="../assets/suite.js"></script>
+<script>
+SU.ready(()=>{
+  SU.crud(SU.$('#root'),{key:'gear',noun:'item',csv:'gear',filter:'category',sort:'name',
+    fields:[
+      {k:'name',l:'Name',req:true},
+      {k:'category',l:'Category',t:'select',opts:['Camera','Lens','Audio','Lighting','Support','Media','Computer','Instrument','Network','Other'],def:'Camera'},
+      {k:'brand',l:'Brand'},
+      {k:'serial',l:'Serial'},
+      {k:'value',l:'Value',t:'num',fmt:v=>v==null?'':'£'+Number(v).toLocaleString()},
+      {k:'bought',l:'Bought',t:'date'},
+      {k:'cond',l:'Condition',t:'select',opts:['New','Good','Worn','Needs repair'],def:'Good'},
+      {k:'loc',l:'Stored at'},
+      {k:'notes',l:'Notes',t:'area',list:false}
+    ],
+    summary:items=>'total value £'+items.reduce((a,i)=>a+(+i.value||0),0).toLocaleString()
+  });
+});
+</script></body></html>

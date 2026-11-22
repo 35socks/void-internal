@@ -1,0 +1,36 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Tempo Tools</title><link rel="stylesheet" href="../assets/suite.css"></head>
+<body data-app="tempo"><div id="app"><div class="cols">
+<div class="panel corners"><h2>Tap tempo</h2><div class="center"><div class="big" id="bpm">—</div><div class="small muted" id="tapinfo">Tap the button (or press T) in time</div>
+<div class="row" style="justify-content:center;margin-top:16px"><button class="btn primary" id="tap" style="padding:22px 46px;font-size:13px">TAP</button><button class="btn ghost" id="reset">Reset</button></div></div></div>
+<div class="panel"><h2>Delay &amp; reverb times</h2><label class="f"><span>BPM</span><input type="number" id="bpmIn" value="120" min="20" max="400" step="0.1"></label><div class="tablewrap"><table id="delays"></table></div></div>
+</div>
+<div class="cols">
+<div class="panel"><h2>Song length ↔ bars</h2><div class="row"><label class="f grow"><span>BPM</span><input type="number" id="lb" value="120"></label><label class="f grow"><span>Beats / bar</span><input type="number" id="lbb" value="4"></label></div>
+<div class="row"><label class="f grow"><span>Bars</span><input type="number" id="lbars" value="64"></label><label class="f grow"><span>Length (m:ss)</span><input type="text" id="llen"></label></div><div class="small muted" id="lnote"></div></div>
+<div class="panel"><h2>Time-stretch / pitch</h2><div class="row"><label class="f grow"><span>Original BPM</span><input type="number" id="sa" value="100"></label><label class="f grow"><span>Target BPM</span><input type="number" id="sb" value="120"></label></div>
+<dl class="kv" id="stretch"></dl></div></div>
+</div>
+<script src="../assets/suite.js"></script>
+<script>
+SU.ready(()=>{
+  const $=SU.$; let taps=[];
+  function tap(){ const n=performance.now(); if(taps.length&&n-taps[taps.length-1]>2500) taps=[]; taps.push(n); taps=taps.slice(-10);
+    if(taps.length>1){ const iv=[]; for(let i=1;i<taps.length;i++) iv.push(taps[i]-taps[i-1]); const avg=iv.reduce((a,b)=>a+b)/iv.length, b=60000/avg; $('#bpm').textContent=b.toFixed(1); $('#tapinfo').textContent=taps.length+' taps · rounds to '+Math.round(b)+' BPM · click again to refine'; $('#bpmIn').value=b.toFixed(1); delays(); } else $('#tapinfo').textContent='Keep tapping…'; }
+  $('#tap').onclick=tap; $('#reset').onclick=()=>{ taps=[]; $('#bpm').textContent='—'; $('#tapinfo').textContent='Tap the button (or press T) in time'; };
+  addEventListener('keydown',e=>{ if(e.key.toLowerCase()==='t'&&!/INPUT|TEXTAREA|SELECT/.test(e.target.tagName)) tap(); });
+  function delays(){
+    const bpm=+$('#bpmIn').value||120, q=60000/bpm; const rows=[['1/1',4],['1/2',2],['1/4',1],['1/8',.5],['1/16',.25],['1/32',.125]];
+    let h='<thead><tr><th>Note</th><th class="num">Straight</th><th class="num">Dotted</th><th class="num">Triplet</th><th class="num">Hz</th></tr></thead><tbody>';
+    rows.forEach(([n,m])=>{ const t=q*m; h+='<tr><td>'+n+'</td><td class="num">'+t.toFixed(1)+' ms</td><td class="num">'+(t*1.5).toFixed(1)+' ms</td><td class="num">'+(t*2/3).toFixed(1)+' ms</td><td class="num">'+(1000/t).toFixed(2)+'</td></tr>'; });
+    h+='</tbody>'; $('#delays').innerHTML=h;
+  }
+  $('#bpmIn').oninput=delays; delays();
+  function fromBars(){ const b=+$('#lb').value,bb=+$('#lbb').value,bars=+$('#lbars').value; if(!b||!bb) return; const s=bars*bb*60/b; $('#llen').value=SU.dur(s); $('#lnote').textContent=(bars*bb)+' beats · '+s.toFixed(1)+' s'; }
+  function fromLen(){ const b=+$('#lb').value,bb=+$('#lbb').value,s=SU.parseDur($('#llen').value); if(!b||!bb) return; $('#lbars').value=(s*b/60/bb).toFixed(2); $('#lnote').textContent=(s*b/60).toFixed(1)+' beats'; }
+  ['lb','lbb','lbars'].forEach(i=>$('#'+i).oninput=fromBars); $('#llen').oninput=fromLen; fromBars();
+  function stretch(){ const a=+$('#sa').value,b=+$('#sb').value; if(!a||!b) return; const r=b/a, st=12*Math.log2(r);
+    $('#stretch').innerHTML='<dt>Ratio</dt><dd>'+(r*100).toFixed(2)+'%</dd><dt>Tape-style pitch shift</dt><dd>'+(st>=0?'+':'')+st.toFixed(2)+' semitones ('+(st*100>=0?'+':'')+(st*100).toFixed(0)+' cents)</dd><dt>Warp mode needed</dt><dd>'+(Math.abs(r-1)<.08?'Light stretch — any warp mode':Math.abs(r-1)<.25?'Moderate — use a high quality mode':'Heavy — expect artefacts')+'</dd>'; }
+  ['sa','sb'].forEach(i=>$('#'+i).oninput=stretch); stretch();
+});
+</script></body></html>

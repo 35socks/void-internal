@@ -1,0 +1,39 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Media Calc</title><link rel="stylesheet" href="../assets/suite.css"></head>
+<body data-app="media"><div id="app"><div id="root"></div></div>
+<script src="../assets/suite.js"></script>
+<script>
+SU.ready(()=>{
+  const h=SU.h, $=SU.$, num=(id,l,v,step)=>h('label',{class:'f grow'},h('span',null,l),h('input',{type:'number',id,value:v,step:step||'any'}));
+  const sel=(id,l,opts)=>h('label',{class:'f grow'},h('span',null,l),h('select',{id},opts.map(([v,t])=>h('option',{value:v},t))));
+  const f2=(x,d=2)=>(+x.toFixed(d)).toLocaleString();
+  SU.tabs($('#root'),[
+  {label:'Video storage',render:el=>{
+    const P=[['Custom',0],['H.264 1080p ≈ 25 Mbps',25],['H.264 4K ≈ 100 Mbps',100],['H.265 4K ≈ 75 Mbps',75],['ProRes 422 Proxy 1080p25 ≈ 45 Mbps',45],['ProRes 422 LT 1080p25 ≈ 102 Mbps',102],['ProRes 422 1080p25 ≈ 147 Mbps',147],['ProRes 422 HQ 1080p25 ≈ 220 Mbps',220],['ProRes 422 HQ 4K25 ≈ 880 Mbps',880],['ProRes RAW 4K ≈ 1000 Mbps',1000],['XAVC-I 4K ≈ 600 Mbps',600]];
+    el.append(h('div',{class:'cols'},h('div',{class:'panel'},sel('pre','Preset (approximate — check your camera)',P.map(([n,v],i)=>[i,n])),h('div',{class:'row'},num('mb','Bitrate (Mbps)',100),num('min','Minutes of footage',60),num('cams','Cameras',1))),h('div',{class:'panel'},h('dl',{class:'kv',id:'vo'}),h('div',{class:'hr'}),h('h2',null,'Card capacity check'),h('div',{class:'row'},num('card','Card size (GB)',256)),h('div',{class:'small',id:'cc'}))));
+    $('#pre').onchange=()=>{ if(P[$('#pre').value][1]) $('#mb').value=P[$('#pre').value][1]; run(); };
+    const run=()=>{ const mb=+$('#mb').value,m=+$('#min').value,c=+$('#cams').value||1, gbPerMin=mb/8*60/1000; const tot=gbPerMin*m*c;
+      $('#vo').innerHTML='<dt>Per minute</dt><dd>'+f2(gbPerMin,2)+' GB</dd><dt>Per hour</dt><dd>'+f2(gbPerMin*60,1)+' GB</dd><dt>Total</dt><dd>'+f2(tot,1)+' GB ('+f2(tot/1000,2)+' TB)</dd><dt>With 20% headroom</dt><dd>'+f2(tot*1.2,1)+' GB</dd>';
+      const cap=+$('#card').value*.93/(gbPerMin*60)*60; $('#cc').textContent='A '+$('#card').value+' GB card holds ~'+f2(cap,0)+' min ('+f2(cap/60,1)+' h) per camera at this bitrate.'; };
+    el.addEventListener('input',run); run(); }},
+  {label:'Audio storage',render:el=>{
+    el.append(h('div',{class:'cols'},h('div',{class:'panel'},h('div',{class:'row'},sel('sr','Sample rate',[[44100,'44.1 kHz'],[48000,'48 kHz'],[88200,'88.2 kHz'],[96000,'96 kHz'],[192000,'192 kHz']]),sel('bd','Bit depth',[[16,'16'],[24,'24'],[32,'32 float']])),h('div',{class:'row'},num('ch','Channels',2),num('am','Minutes',60),num('tk','Tracks (stems)',1))),h('div',{class:'panel'},h('dl',{class:'kv',id:'ao'}))));
+    $('#sr').value=48000; $('#bd').value=24;
+    const run=()=>{ const bps=+$('#sr').value*+$('#bd').value*+$('#ch').value, bytesMin=bps/8*60, tot=bytesMin*(+$('#am').value)*(+$('#tk').value||1);
+      $('#ao').innerHTML='<dt>Data rate</dt><dd>'+f2(bps/1000,0)+' kbps</dd><dt>Per minute</dt><dd>'+SU.bytes(bytesMin)+'</dd><dt>Total (WAV/PCM)</dt><dd>'+SU.bytes(tot)+'</dd><dt>FLAC ≈ 55–60%</dt><dd>'+SU.bytes(tot*.58)+'</dd>'; };
+    el.addEventListener('input',run); el.addEventListener('change',run); run(); }},
+  {label:'Transfer time',render:el=>{
+    const S=[['USB 2.0 (≈35 MB/s)',35],['SD UHS-I (≈90 MB/s)',90],['HDD (≈150 MB/s)',150],['USB 3.0 / 5 Gbps (≈400 MB/s)',400],['SATA SSD (≈520 MB/s)',520],['Gigabit LAN (≈112 MB/s)',112],['2.5 GbE (≈280 MB/s)',280],['10 GbE (≈1100 MB/s)',1100],['NVMe / TB3 (≈2500 MB/s)',2500],['Internet 100 Mbps (≈11 MB/s)',11],['Internet 1 Gbps (≈110 MB/s)',110]];
+    el.append(h('div',{class:'cols'},h('div',{class:'panel'},num('sz','Size (GB)',500),sel('sp','Link / drive',S.map(([n,v])=>[v,n])),num('cu','Custom MB/s (overrides)','')),h('div',{class:'panel'},h('dl',{class:'kv',id:'tr'}),h('div',{class:'small muted',style:'margin-top:10px'},'Real-world speeds are usually lower; many small files are slower than one big file.'))));
+    const run=()=>{ const sp=+$('#cu').value||+$('#sp').value, s=SU.dur(+$('#sz').value*1000/sp); $('#tr').innerHTML='<dt>Speed used</dt><dd>'+sp+' MB/s</dd><dt>Time</dt><dd>'+s+' (h:mm:ss)</dd><dt>Realistic (−25%)</dt><dd>'+SU.dur(+$('#sz').value*1000/sp/.75)+'</dd>'; };
+    el.addEventListener('input',run); el.addEventListener('change',run); run(); }},
+  {label:'RAID / pool',render:el=>{
+    el.append(h('div',{class:'cols'},h('div',{class:'panel'},h('div',{class:'row'},num('dn','Drives',4),num('ds','Drive size (TB)',8)),sel('lv','Layout',[['stripe','RAID 0 / stripe'],['mirror','RAID 1 / mirror (2-way)'],['r5','RAID 5 / RAIDZ1'],['r6','RAID 6 / RAIDZ2'],['r10','RAID 10 / striped mirrors'],['z3','RAIDZ3'],['jbod','JBOD / single disks (no redundancy)']])),h('div',{class:'panel'},h('dl',{class:'kv',id:'rd'}),h('div',{class:'small muted',style:'margin-top:10px'},'Capacity uses decimal TB as marketed; formatted capacity shows ~9% lower. RAID is not a backup — keep a 3-2-1 copy.'))));
+    $('#lv').value='r5';
+    const run=()=>{ const n=+$('#dn').value,s=+$('#ds').value,l=$('#lv').value; let u=0,ft='',min=1;
+      if(l==='stripe'){u=n*s;ft='none — any loss kills the array'; min=2;} else if(l==='mirror'){u=s;ft=(n-1)+' drives'; min=2;} else if(l==='r5'){u=(n-1)*s;ft='1 drive'; min=3;} else if(l==='r6'){u=(n-2)*s;ft='2 drives'; min=4;} else if(l==='z3'){u=(n-3)*s;ft='3 drives'; min=5;} else if(l==='r10'){u=Math.floor(n/2)*s;ft='1 per mirror pair (at least 1)'; min=4;} else {u=n*s;ft='none'; min=1;}
+      const bad=n<min; $('#rd').innerHTML='<dt>Usable</dt><dd>'+(bad?'needs ≥ '+min+' drives':f2(Math.max(0,u),2)+' TB')+'</dd><dt>Formatted ≈</dt><dd>'+(bad?'—':f2(Math.max(0,u)*.909,2)+' TiB')+'</dd><dt>Efficiency</dt><dd>'+(bad?'—':f2(u/(n*s)*100,0)+'%')+'</dd><dt>Survives losing</dt><dd>'+ft+'</dd><dt>Raw</dt><dd>'+f2(n*s,1)+' TB</dd>'; };
+    el.addEventListener('input',run); el.addEventListener('change',run); run(); }}
+  ]);
+});
+</script></body></html>

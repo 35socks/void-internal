@@ -1,0 +1,51 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Notes</title><link rel="stylesheet" href="../assets/suite.css">
+<style>.nlist{max-height:68vh;overflow:auto}.nitem{padding:12px 14px;border-bottom:1px solid var(--line);cursor:pointer;border-left:2px solid transparent}.nitem:hover{background:var(--panel-2)}.nitem.sel{background:var(--panel-3);border-left-color:var(--paper)}.nitem .t{font-size:13px}.nitem .s{font-size:10.5px;color:var(--dim);margin-top:3px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.md h1,.md h2,.md h3{font-family:var(--pix);font-weight:400;letter-spacing:.05em;margin:14px 0 8px}.md p,.md li{line-height:1.7;margin-bottom:6px}.md ul{padding-left:20px}.md code{font-family:var(--mono);background:var(--panel-3);padding:1px 5px}.md pre{background:#000;border:1px solid var(--line);padding:12px;overflow:auto;margin:8px 0}.md blockquote{border-left:2px solid var(--paper);padding-left:12px;color:var(--dim-3)}.md a{text-decoration:underline}</style></head>
+<body data-app="notes"><div id="app">
+<div class="cols side">
+ <div class="panel" style="padding:0"><div style="padding:12px;border-bottom:1px solid var(--line)" class="row"><input type="search" id="q" placeholder="Search notes / #tags…" class="grow"><button class="btn primary sm" id="new">+ New</button></div><div class="nlist" id="list"></div></div>
+ <div class="panel" id="ed"><div class="empty">Select or create a note</div></div>
+</div></div>
+<script src="../assets/suite.js"></script>
+<script>
+SU.ready(()=>{
+  let notes=SU.store.get('notes',[]), sel=null, q='', preview=false;
+  const save=()=>SU.store.set('notes',notes);
+  function md(src){
+    let s=SU.esc(src);
+    s=s.replace(/```([\s\S]*?)```/g,(m,c)=>'<pre><code>'+c.trim()+'</code></pre>');
+    s=s.split('\n').map(l=>{
+      if(/^### /.test(l)) return '<h3>'+l.slice(4)+'</h3>'; if(/^## /.test(l)) return '<h2>'+l.slice(3)+'</h2>'; if(/^# /.test(l)) return '<h1>'+l.slice(2)+'</h1>';
+      if(/^&gt; /.test(l)) return '<blockquote>'+l.slice(5)+'</blockquote>'; if(/^[-*] /.test(l)) return '<li>'+l.slice(2)+'</li>'; if(/^- \[[ x]\] /.test(l)) return l; if(!l.trim()) return ''; return /^<(pre|\/pre)/.test(l)?l:'<p>'+l+'</p>'; }).join('\n');
+    s=s.replace(/(<li>[\s\S]*?<\/li>)(?!\s*<li>)/g,'<ul>$1</ul>').replace(/\*\*(.+?)\*\*/g,'<b>$1</b>').replace(/\*(.+?)\*/g,'<i>$1</i>').replace(/`([^`]+)`/g,'<code>$1</code>').replace(/\[([^\]]+)\]\((https?:[^)\s]+)\)/g,'<a href="$2" target="_blank" rel="noopener">$1</a>');
+    return s;
+  }
+  const tags=n=>(n.body.match(/#[\w-]+/g)||[]);
+  function drawList(){
+    const L=SU.$('#list'); L.innerHTML='';
+    const rows=notes.filter(n=>!q||(n.title+' '+n.body).toLowerCase().includes(q)).sort((a,b)=>(b.pin?1:0)-(a.pin?1:0)||b.updated-a.updated);
+    if(!rows.length) L.append(SU.h('div',{class:'empty'},'No notes'));
+    rows.forEach(n=>L.append(SU.h('div',{class:'nitem'+(n===sel?' sel':''),onclick:()=>{ sel=n; preview=false; drawList(); drawEd(); }},
+      SU.h('div',{class:'t'},(n.pin?'📌 ':'')+(n.title||'Untitled')),SU.h('div',{class:'s'},n.body.replace(/\s+/g,' ').slice(0,70)||'Empty'))));
+  }
+  function drawEd(){
+    const E=SU.$('#ed'); E.innerHTML='';
+    if(!sel){ E.append(SU.h('div',{class:'empty'},'Select or create a note')); return; }
+    const title=SU.h('input',{type:'text',value:sel.title,placeholder:'Title',style:'font-size:16px;margin-bottom:10px',oninput:()=>{ sel.title=title.value; sel.updated=Date.now(); save(); drawList(); }});
+    const body=SU.h('textarea',{class:'mono',style:'min-height:50vh',placeholder:'Markdown: # heading, **bold**, - list, `code`, [link](https://…), #tags',oninput:()=>{ sel.body=body.value; sel.updated=Date.now(); save(); drawList(); }},);
+    body.value=sel.body;
+    const view=SU.h('div',{class:'md',html:md(sel.body),style:'min-height:50vh'});
+    E.append(title, preview?view:body,
+      SU.h('div',{class:'row',style:'margin-top:12px'},
+        SU.h('div',{class:'chips grow'},tags(sel).map(t=>SU.h('span',{class:'tag chip',onclick:()=>{ SU.$('#q').value=t; q=t.toLowerCase(); drawList(); }},t))),
+        SU.h('button',{class:'btn sm ghost',onclick:()=>{ preview=!preview; drawEd(); }},preview?'Edit':'Preview'),
+        SU.h('button',{class:'btn sm ghost',onclick:()=>{ sel.pin=!sel.pin; save(); drawList(); drawEd(); }},sel.pin?'Unpin':'Pin'),
+        SU.h('button',{class:'btn sm ghost',onclick:()=>SU.download((sel.title||'note')+'.md',sel.body)},'.md ↓'),
+        SU.h('button',{class:'btn sm ghost danger',onclick:async()=>{ if(await SU.confirm('Delete this note?')){ notes=notes.filter(n=>n!==sel); sel=null; save(); drawList(); drawEd(); } }},'Delete')));
+  }
+  SU.$('#q').addEventListener('input',e=>{ q=e.target.value.toLowerCase(); drawList(); });
+  SU.$('#new').onclick=()=>{ sel={id:SU.uid(),title:'',body:'',pin:false,updated:Date.now()}; notes.push(sel); save(); preview=false; drawList(); drawEd(); };
+  drawList(); drawEd();
+});
+</script></body></html>

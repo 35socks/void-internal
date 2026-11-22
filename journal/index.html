@@ -1,0 +1,34 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Journal</title><link rel="stylesheet" href="../assets/suite.css">
+<style>.jl{max-height:64vh;overflow:auto}.ji{padding:11px 14px;border-bottom:1px solid var(--line);cursor:pointer;border-left:2px solid transparent;display:flex;justify-content:space-between;gap:8px}.ji:hover{background:var(--panel-2)}.ji.sel{background:var(--panel-3);border-left-color:var(--paper)}.mood button{background:none;border:1px solid var(--line);width:36px;height:36px;font-size:16px;cursor:pointer;color:var(--paper)}.mood button.on{background:var(--paper);color:var(--void)}</style></head>
+<body data-app="journal"><div id="app"><div class="cols side">
+<div class="panel" style="padding:0"><div style="padding:12px;border-bottom:1px solid var(--line)" class="row"><input type="search" id="q" placeholder="Search entries…" class="grow"><button class="btn primary sm" id="today">Today</button></div><div class="jl" id="list"></div></div>
+<div class="panel" id="ed"></div></div></div>
+<script src="../assets/suite.js"></script>
+<script>
+SU.ready(()=>{
+  let J=SU.store.get('journal',{}), cur=SU.today(), q=''; const save=()=>SU.store.set('journal',J);
+  const moods=['1','2','3','4','5'], face={1:'☹',2:'·',3:'–',4:'+',5:'★'};
+  function drawList(){
+    const L=SU.$('#list'); L.innerHTML='';
+    const ks=Object.keys(J).filter(k=>(J[k].text||'').trim()&&(!q||(k+J[k].text).toLowerCase().includes(q))).sort().reverse();
+    if(!ks.length) L.append(SU.h('div',{class:'empty'},'No entries'));
+    ks.forEach(k=>L.append(SU.h('div',{class:'ji'+(k===cur?' sel':''),onclick:()=>{ cur=k; drawList(); drawEd(); }},
+      SU.h('span',{class:'mono small'},k),SU.h('span',{class:'small muted'},(J[k].mood?face[J[k].mood]+' · ':'')+J[k].text.trim().split(/\s+/).length+'w'))));
+  }
+  function drawEd(){
+    const E=SU.$('#ed'); E.innerHTML=''; const e=J[cur]||(J[cur]={text:'',mood:0});
+    const ta=SU.h('textarea',{style:'min-height:48vh;line-height:1.8',placeholder:'What happened today? What are you working on, listening to, thinking about…',oninput:()=>{ e.text=ta.value; save(); wc.textContent=(ta.value.trim()?ta.value.trim().split(/\s+/).length:0)+' words'; drawList(); }}); ta.value=e.text;
+    const wc=SU.h('span',{class:'small muted'},(e.text.trim()?e.text.trim().split(/\s+/).length:0)+' words');
+    const mood=SU.h('div',{class:'mood row',style:'gap:4px'},moods.map(m=>SU.h('button',{class:e.mood==m?'on':'',onclick:()=>{ e.mood=e.mood==m?0:+m; save(); drawEd(); drawList(); }},face[m])));
+    E.append(SU.h('div',{class:'row',style:'justify-content:space-between;margin-bottom:12px'},
+      SU.h('input',{type:'date',value:cur,style:'width:auto',onchange:ev=>{ if(ev.target.value){ cur=ev.target.value; drawList(); drawEd(); } }}),mood),ta,
+      SU.h('div',{class:'row',style:'margin-top:10px;justify-content:space-between'},wc,SU.h('div',{class:'row'},
+        SU.h('button',{class:'btn sm ghost',onclick:()=>SU.download('journal-'+cur+'.txt',e.text)},'Download'),
+        SU.h('button',{class:'btn sm ghost',onclick:()=>{ const all=Object.keys(J).sort().map(k=>k+(J[k].mood?'  [mood '+J[k].mood+'/5]':'')+'\n'+J[k].text).join('\n\n---\n\n'); SU.download('journal-all.txt',all); }},'Export all'))));
+  }
+  SU.$('#q').addEventListener('input',e=>{ q=e.target.value.toLowerCase(); drawList(); });
+  SU.$('#today').onclick=()=>{ cur=SU.today(); drawList(); drawEd(); };
+  drawList(); drawEd();
+});
+</script></body></html>

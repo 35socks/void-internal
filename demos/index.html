@@ -1,0 +1,79 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Demo Vault</title><link rel="stylesheet" href="../assets/suite.css">
+<style>.np{position:sticky;top:64px;z-index:10}.np audio{width:100%;margin-top:10px;filter:invert(1) grayscale(1)}.dz.drag{border-color:var(--paper);color:var(--paper)}</style></head>
+<body data-app="demos"><div id="app"><div id="root"></div></div>
+<script src="../assets/suite.js"></script>
+<script>
+SU.ready(()=>{
+  const root=SU.$('#root'), PREFIX='demos/', META='demos-meta';
+  if(!SU.s3.ok()){
+    root.append(SU.h('div',{class:'panel corners'},SU.h('h2',null,'Not connected'),SU.h('p',{class:'muted',style:'line-height:1.7'},'Connect your S3 bucket in Settings (bucket, region, access key, secret). Credentials stay in this browser only and are never written to the site files.'),SU.h('div',{style:'margin-top:14px'},SU.h('a',{class:'btn primary',href:SU.appUrl('settings')},'Open Settings'))));
+    return;
+  }
+  let files=[], meta=SU.store.get(META,{}), q='', sort='modified', queue=[], idx=-1;
+  const saveMeta=()=>SU.store.set(META,meta);
+  const name=k=>k.slice(PREFIX.length);
+  const np=SU.h('div',{class:'panel corners np hidden'}), audio=SU.h('audio',{controls:true,preload:'none'});
+  const dz=SU.h('label',{class:'drop dz'},'Drop audio here or click to upload',SU.h('input',{type:'file',multiple:true,accept:'audio/*,.flac,.wav,.aif,.aiff,.m4a,.mp3,.ogg,.opus',hidden:true,onchange:e=>upload([...e.target.files])}));
+  const status=SU.h('div',{class:'small muted',style:'margin:10px 0;min-height:16px'});
+  const search=SU.h('input',{type:'search',placeholder:'Search demos…',class:'grow',oninput:()=>{ q=search.value.toLowerCase(); draw(); }});
+  const sel=SU.h('select',{style:'width:auto',onchange:()=>{ sort=sel.value; draw(); }},[['modified','Newest'],['name','Name'],['size','Size']].map(([v,l])=>SU.h('option',{value:v},l)));
+  const list=SU.h('div',{class:'tablewrap'});
+  root.append(np,dz,status,SU.h('div',{class:'row',style:'margin-bottom:12px'},search,sel,SU.h('button',{class:'btn ghost',onclick:load},'Refresh')),list);
+  ['dragenter','dragover'].forEach(e=>dz.addEventListener(e,ev=>{ ev.preventDefault(); dz.classList.add('drag'); }));
+  ['dragleave','drop'].forEach(e=>dz.addEventListener(e,ev=>{ ev.preventDefault(); dz.classList.remove('drag'); }));
+  dz.addEventListener('drop',ev=>upload([...ev.dataTransfer.files]));
+
+  async function load(){
+    status.textContent='Loading…';
+    try{ files=(await SU.s3.list(PREFIX)).filter(f=>f.key!==PREFIX&&f.size>=0&&!f.key.endsWith('/')); status.textContent=files.length+' demos · '+SU.bytes(files.reduce((a,f)=>a+f.size,0)); }
+    catch(e){ status.innerHTML='<span class="bad">'+SU.esc(e.message)+'</span> — check keys, region, bucket policy and CORS (see Settings).'; }
+    draw();
+  }
+  async function upload(fl){
+    for(const f of fl){
+      const key=PREFIX+f.name.replace(/[^\w.\- ()\[\]]+/g,'_');
+      status.textContent='Uploading '+f.name+' ('+SU.bytes(f.size)+')…';
+      try{ await SU.s3.put(key,f); }catch(e){ status.innerHTML='<span class="bad">Upload failed: '+SU.esc(e.message)+'</span>'; return; }
+    }
+    SU.toast('Upload complete'); load();
+  }
+  async function play(i){
+    const f=queue[i]; if(!f) return; idx=i;
+    try{ audio.src=await SU.s3.presign(f.key,3600); }catch(e){ SU.toast(e.message); return; }
+    np.classList.remove('hidden'); np.firstChild&&0; np.innerHTML=''; np.append(SU.h('h2',null,'Now playing'),SU.h('div',{style:'font-size:15px'},name(f.key)),SU.h('div',{class:'small muted'},(meta[f.key]&&meta[f.key].note)||''),audio);
+    audio.play().catch(()=>{});
+  }
+  audio.addEventListener('ended',()=>play(idx+1));
+  async function details(f){
+    const m=meta[f.key]||{}, form=SU.buildForm([{k:'tag',l:'Tag',ph:'idea, demo, mix v2…',def:''},{k:'bpm',l:'BPM',t:'num'},{k:'key',l:'Key'},{k:'note',l:'Notes',t:'area'}],m);
+    const r=await SU.modal(name(f.key),form.el,[{label:'Cancel',cls:'ghost',value:null},{label:'Save',cls:'primary',value:'save'}]);
+    if(r==='save'){ meta[f.key]=form.get(); saveMeta(); draw(); }
+  }
+  async function share(f){
+    const sel=SU.h('select',null,[['3600','1 hour'],['86400','1 day'],['604800','7 days (max)']].map(([v,l])=>SU.h('option',{value:v},l)));
+    const r=await SU.modal('Share link',SU.h('div',null,SU.h('p',{class:'muted small',style:'margin-bottom:12px'},'Creates a temporary signed link anyone can use to download this demo until it expires.'),sel),[{label:'Cancel',cls:'ghost',value:null},{label:'Copy link',cls:'primary',fn:()=>sel.value}]);
+    if(r) SU.copy(await SU.s3.presign(f.key,+r));
+  }
+  function draw(){
+    let rows=files.filter(f=>!q||(name(f.key)+' '+JSON.stringify(meta[f.key]||{})).toLowerCase().includes(q));
+    rows.sort((a,b)=>sort==='name'?name(a.key).localeCompare(name(b.key)):sort==='size'?b.size-a.size:new Date(b.modified)-new Date(a.modified));
+    queue=rows; list.innerHTML='';
+    if(!rows.length){ list.append(SU.h('div',{class:'empty'},files.length?'No matches':'No demos yet — upload one above')); return; }
+    const t=SU.h('table'); t.append(SU.h('thead',null,SU.h('tr',null,['','Name','Tag','BPM','Key','Size','Added',''].map(x=>SU.h('th',{style:'cursor:default'},x)))));
+    const tb=SU.h('tbody');
+    rows.forEach((f,i)=>{ const m=meta[f.key]||{};
+      tb.append(SU.h('tr',null,
+        SU.h('td',null,SU.h('button',{class:'btn sm primary',onclick:()=>play(i)},'▶')),
+        SU.h('td',null,SU.h('div',null,name(f.key)),m.note?SU.h('div',{class:'small muted'},m.note.slice(0,80)):null),
+        SU.h('td',null,m.tag?SU.h('span',{class:'tag'},m.tag):''),SU.h('td',{class:'num'},m.bpm||''),SU.h('td',null,m.key||''),
+        SU.h('td',{class:'num'},SU.bytes(f.size)),SU.h('td',{class:'small muted'},new Date(f.modified).toLocaleDateString('en-GB')),
+        SU.h('td',{class:'act'},SU.h('button',{class:'btn sm ghost',onclick:()=>details(f)},'Info'),' ',SU.h('button',{class:'btn sm ghost',onclick:()=>share(f)},'Share'),' ',
+          SU.h('button',{class:'btn sm ghost',onclick:async()=>{ const u=await SU.s3.presign(f.key,300); const a=SU.h('a',{href:u,download:name(f.key)}); document.body.append(a); a.click(); a.remove(); }},'↓'),' ',
+          SU.h('button',{class:'btn sm ghost danger',onclick:async()=>{ if(await SU.confirm('Delete "'+name(f.key)+'" from the bucket? This cannot be undone.')){ try{ await SU.s3.del(f.key); delete meta[f.key]; saveMeta(); load(); }catch(e){ SU.toast(e.message); } } }},'×'))));
+    });
+    t.append(tb); list.append(t);
+  }
+  load();
+});
+</script></body></html>

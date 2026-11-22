@@ -1,0 +1,42 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Tuner &amp; Tones</title><link rel="stylesheet" href="../assets/suite.css">
+<style>.needle{position:relative;height:10px;background:var(--line);margin:18px 0}.needle i{position:absolute;top:-6px;width:3px;height:22px;background:var(--paper);left:50%;transition:left .08s linear}.needle b{position:absolute;left:50%;top:-4px;width:1px;height:18px;background:var(--dim)}</style></head>
+<body data-app="tuner"><div id="app"><div class="cols">
+<div class="panel corners center"><h2>Tuner</h2><div class="big" id="note">—</div><div class="small muted" id="hz">Press start and allow the microphone</div>
+<div class="needle"><b></b><i id="nd"></i></div><div class="mono small" id="cents">&nbsp;</div>
+<div class="row" style="justify-content:center;margin-top:14px"><button class="btn primary" id="mic">Start</button><label class="row small muted">A4 <input type="number" id="a4" value="440" style="width:74px"> Hz</label></div></div>
+<div class="panel"><h2>Tone generator</h2><div class="row"><label class="f grow"><span>Frequency (Hz)</span><input type="number" id="f" value="440" step="0.1"></label><label class="f grow"><span>Wave</span><select id="w"><option>sine</option><option>triangle</option><option>square</option><option>sawtooth</option></select></label></div>
+<label class="f"><span>Volume</span><input type="range" id="v" min="0" max=".5" step=".01" value=".15"></label><div class="chips" id="pre" style="margin-bottom:14px"></div>
+<div class="row"><button class="btn primary" id="tg">Play</button><button class="btn ghost" id="pink">Pink noise</button></div>
+<div class="hr"></div><h2>Guitar reference</h2><div class="chips" id="gt"></div></div></div></div>
+<script src="../assets/suite.js"></script>
+<script>
+SU.ready(()=>{
+  const $=SU.$, N=['C','C#','D','D#','E','F','F#','G','G#','A','A#','B']; let ctx, an, stream, raf, buf;
+  const a4=()=>+$('#a4').value||440;
+  function detect(b,sr){ // autocorrelation with parabolic interpolation
+    let rms=0; for(const x of b) rms+=x*x; rms=Math.sqrt(rms/b.length); if(rms<.01) return -1;
+    let r1=0,r2=b.length-1,th=.2; for(let i=0;i<b.length/2;i++) if(Math.abs(b[i])<th){ r1=i; break; } for(let i=1;i<b.length/2;i++) if(Math.abs(b[b.length-i])<th){ r2=b.length-i; break; }
+    const s=b.slice(r1,r2), n=s.length, c=new Float32Array(n); for(let i=0;i<n;i++) for(let j=0;j<n-i;j++) c[i]+=s[j]*s[j+i];
+    let d=0; while(c[d]>c[d+1]) d++; let mx=-1,mp=-1; for(let i=d;i<n;i++) if(c[i]>mx){ mx=c[i]; mp=i; }
+    let T=mp; const x1=c[T-1],x2=c[T],x3=c[T+1]; const a=(x1+x3-2*x2)/2,bb=(x3-x1)/2; if(a) T-=bb/(2*a); return sr/T; }
+  function loop(){ an.getFloatTimeDomainData(buf); const f=detect(buf.slice(0,2048),ctx.sampleRate);
+    if(f>40&&f<2000){ const m=12*Math.log2(f/a4())+69, r=Math.round(m), cents=(m-r)*100; $('#note').textContent=N[((r%12)+12)%12]+(Math.floor(r/12)-1); $('#hz').textContent=f.toFixed(1)+' Hz'; $('#cents').textContent=(cents>=0?'+':'')+cents.toFixed(0)+' cents'+(Math.abs(cents)<5?' ✓':''); $('#nd').style.left=(50+Math.max(-50,Math.min(50,cents)))+'%'; }
+    raf=requestAnimationFrame(loop); }
+  $('#mic').onclick=async()=>{
+    if(stream){ stream.getTracks().forEach(t=>t.stop()); stream=null; cancelAnimationFrame(raf); $('#mic').textContent='Start'; return; }
+    try{ stream=await navigator.mediaDevices.getUserMedia({audio:{echoCancellation:false,noiseSuppression:false,autoGainControl:false}}); }catch{ SU.toast('Microphone blocked or unavailable (needs https)'); return; }
+    ctx=ctx||new (window.AudioContext||window.webkitAudioContext)(); await ctx.resume(); an=ctx.createAnalyser(); an.fftSize=4096; buf=new Float32Array(an.fftSize); ctx.createMediaStreamSource(stream).connect(an); $('#mic').textContent='Stop'; loop(); };
+  // generator
+  let osc,gain,noise;
+  const gctx=()=>ctx=ctx||new (window.AudioContext||window.webkitAudioContext)();
+  function stopTone(){ if(osc){ try{osc.stop();}catch{} osc=null; } if(noise){ try{noise.stop();}catch{} noise=null; } $('#tg').textContent='Play'; $('#pink').textContent='Pink noise'; }
+  $('#tg').onclick=()=>{ if(osc){ stopTone(); return; } stopTone(); const c=gctx(); c.resume(); osc=c.createOscillator(); gain=c.createGain(); osc.type=$('#w').value; osc.frequency.value=+$('#f').value; gain.gain.value=+$('#v').value; osc.connect(gain); gain.connect(c.destination); osc.start(); $('#tg').textContent='Stop'; };
+  $('#f').oninput=()=>{ if(osc) osc.frequency.value=+$('#f').value; }; $('#w').onchange=()=>{ if(osc) osc.type=$('#w').value; }; $('#v').oninput=()=>{ if(gain) gain.gain.value=+$('#v').value; };
+  $('#pink').onclick=()=>{ if(noise){ stopTone(); return; } stopTone(); const c=gctx(); c.resume(); const n=c.sampleRate*4, b=c.createBuffer(1,n,c.sampleRate), d=b.getChannelData(0); let b0=0,b1=0,b2=0,b3=0,b4=0,b5=0,b6=0;
+    for(let i=0;i<n;i++){ const w=Math.random()*2-1; b0=.99886*b0+w*.0555179; b1=.99332*b1+w*.0750759; b2=.969*b2+w*.153852; b3=.8665*b3+w*.3104856; b4=.55*b4+w*.5329522; b5=-.7616*b5-w*.016898; d[i]=(b0+b1+b2+b3+b4+b5+b6+w*.5362)*.11; b6=w*.115926; }
+    noise=c.createBufferSource(); noise.buffer=b; noise.loop=true; gain=c.createGain(); gain.gain.value=+$('#v').value; noise.connect(gain); gain.connect(c.destination); noise.start(); $('#pink').textContent='Stop noise'; };
+  [['A4',440],['C4',261.63],['E4',329.63],['A3',220],['A2',110],['1 kHz',1000]].forEach(([n,f])=>$('#pre').append(SU.h('span',{class:'tag chip',onclick:()=>{ $('#f').value=f; if(osc) osc.frequency.value=f; }},n+' · '+f)));
+  [['E2',82.41],['A2',110],['D3',146.83],['G3',196],['B3',246.94],['E4',329.63]].forEach(([n,f])=>$('#gt').append(SU.h('span',{class:'tag chip',onclick:()=>{ stopTone(); $('#f').value=f; $('#tg').click(); }},n)));
+});
+</script></body></html>
